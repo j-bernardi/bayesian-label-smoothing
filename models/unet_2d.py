@@ -1,127 +1,207 @@
 import tensorflow as tf
 import tensorflow.keras.layers as kl
+from collections import deque
+
+
+class DecodeBlock(tf.keras.layers.Layer):
+    """Layer to decode a UNet
+
+    """
+
+    def __init__(
+        self, num_filters_out, num_convs=1, name="decode",
+        batchnorm_every=False, batchnorm_last=False,
+    ):
+        """
+        Args:
+            num_filters_out: number of filters in
+                the layer we're decoding *to*
+        """
+        super(DecodeBlock, self).__init__(name=name)
+
+        self.upsample = kl.Conv2DTranspose(
+            num_filters_out, kernel_size=(2, 2), strides=2, 
+            padding='same', activation="relu",
+            data_format=None, kernel_initializer='he_normal',
+        )
+        self.concat = kl.Concatenate(axis=-1)
+
+        self.convs = []
+        for n in range(num_convs):
+            self.convs.append(
+                kl.Conv2D(
+                    num_filters_out, kernel_size=(2, 2),
+                    strides=1, padding="same",
+                    activation="relu", kernel_initializer='he_normal',
+                )
+            )
+            if batchnorm_every:
+                self.convs.append(kl.BatchNormalization())
+        if batchnorm_last and not batchnorm_every:
+            self.convs.append(kl.BatchNormalization())
+
+    def call(self, x, tensor_for_concat):
+
+        x = self.upsample(x)
+        x = self.concat((tensor_for_concat, x))
+        for conv in self.convs:
+            x = conv(x)
+        return x
+
+
+class EncodeBlock(tf.keras.layers.Layer):
+    """Layer to encode a UNet
+
+    Returns the output as well as the 
+    skip-connection tensor
+    """
+
+    def __init__(
+        self, num_filters_out, num_convs=1, name="encode",
+        batchnorm_every=False, batchnorm_last=True,
+    ):
+        """
+        Args:
+            num_filters_out: number of filters in
+                the layer we're decoding *to*
+        """
+        super(EncodeBlock, self).__init__(name=name)
+
+        self.convs = []
+        for n in range(num_convs):
+            self.convs.append(
+                kl.Conv2D(
+                    filters=num_filters_out, 
+                    kernel_size=(2, 2), strides=1,
+                    padding='same', activation="relu",  # pad default "valid"
+                    data_format="channels_last",
+                    kernel_initializer='he_normal',
+                )
+            )
+            if batchnorm_every:
+                self.convs.append(kl.BatchNormalization())
+        if batchnorm_last and not batchnorm_every:
+            self.convs.append(kl.BatchNormalization())
+
+        self.downsample = kl.MaxPooling2D(
+            pool_size=(2,2), strides=None,
+            padding="same", data_format=None,
+        )
+
+    def call(self, x):
+
+        for conv in self.convs:
+            x = conv(x)
+        save = x
+        x = self.downsample(x)
+
+        return x, save
 
 
 class UNet2D(tf.keras.Model):
  
-    def __init__(self, input_shape, n_classes):
-        # height, width, channels
+    def __init__(
+        self, input_shape, n_classes,
+        encoding=None, decoding=None
+    ):
+        """
+        Args:
+            input_shape: channels_last, excluding batch
+                dimension, e.g. height, width, channels
+            n_classes: number of output classes required
+            encoding: dict of name: argdicts for encoding
+                blocks
+            decoding: dict of name: argdicts for decoding
+                blocks
+
+        """
 
         super(UNet2D, self).__init__()
-        w_init = tf.random_normal_initializer()
 
         ### TODO ###
-        # Rename "encode" as it's whole block, really
+        # Adding one FC at the bottom
+        #   Experiment with 2x conv, 1x conv at each layer
+        #   Adding another level of depth (and experiment 
+        #   with 2x conv, 1x conv...)
         ############
 
-        self.encode_1 = kl.Conv2D(  # encoder at level 1
-            filters=16, kernel_size=(2, 2), strides=1,  # (1, 1), 
-            padding='same', activation="relu",  # padding default valid
-            input_shape=input_shape, data_format="channels_last",
-        )
-        # self.relu_1 = kl.ReLU()
-        self.batch_norm_1 = kl.BatchNormalization()
-        self.downsample_12 = kl.MaxPooling2D(  # downsample to level 2
-            pool_size=(2,2), strides=None, padding="same", data_format=None
-        )
+        # Defaults
+        if not encoding:
+            encoding = {
+                "layer_1_2": {
+                    "num_filters_out": 16,
+                    "num_convs": 1,
+                },
+                "layer_2_3": {
+                    "num_filters_out": 32,
+                    "num_convs": 1,
+                },
+            }
+        if not decoding:
+            decoding = {
+                "layer_3_2": {
+                    "num_filters_out": 32,
+                    "num_convs": 1,
+                },
+                "layer_2_1": {
+                    "num_filters_out": 16,
+                    "num_convs": 1,
+                },
+            }
 
-        self.encode_2 = kl.Conv2D(
-            32, (2, 2), strides=1, padding="same",
-            activation="relu",
-        )
-        # self.relu_2 = kl.ReLU()
-        self.batch_norm_2 = kl.BatchNormalization()
-        self.downsample_23 = kl.MaxPooling2D(pool_size=(2,2), padding="same")
+        self.encoders = []
+        self.decoders = []
 
-        self.level_3 = kl.Conv2D(  # Encode at bottom layer
-            32, (2, 2), strides=1, padding="same",
-            activation="relu",
-        )
-        # self.relu_3 = kl.ReLU()
-        self.batch_norm_3 = kl.BatchNormalization()
+        for nm, argdict in encoding.items():
+            self.encoders.append(
+                EncodeBlock(**argdict, name=nm)
+            )
+
+        # BOTTOM LAYER
+        # Consider batchnorms, FC?
+        # Make configurable
+        self.bottom_block = [
+            kl.Conv2D(  # Encode at bottom layer
+                64, (2, 2), strides=1, padding="same",
+                activation="relu",
+                kernel_initializer='he_normal',
+                name=f"bottom_{n}"
+            ) 
+            for n in range(1)
+        ]
 
         # Consider flatten and fully connected here
+        for nm, argdict in decoding.items():
+            self.decoders.append(
+                DecodeBlock(**argdict, name=nm)
+            )
 
-        ### TODO ###
-        # Should be up-conv to upsample (and get rid of UpSampling2D),
-        # then process concatenated blocks with 2x convs.
-        # Also, people recommend no batchnorm on 2nd leg,
-        # as it's expensive and you're inputting concat BN
-        # Make sure to activate the convs.
-        ############
-
-        self.upsample_32 = kl.Conv2DTranspose(  # upsample level 3 to 2
-            32, kernel_size=(2, 2), strides=2, 
-            padding='same', activation="relu",
-            data_format=None,
-        )
-        self.concat_last_2 = kl.Concatenate(axis=-1)
-        self.decode_2 = kl.Conv2D(
-            32, kernel_size=(2, 2), strides=1, 
-            padding="same", activation="relu",
-        )
-
-        self.upsample_21 = kl.Conv2DTranspose(  # upsample level 3 to 2
-            16, kernel_size=(2, 2), strides=2, 
-            padding='same', activation="relu",
-            data_format=None,
-        )
-        self.concat_last_1 = kl.Concatenate(axis=-1)
-        self.decode_1 = kl.Conv2D(  # flexible on size
-            16, kernel_size=(2, 2), strides=1,
-            padding="same", activation="relu",
-        )
-
+        # OUT
         self.out_layer = kl.Conv2D(  # outputs
             n_classes, kernel_size=1, strides=1,
-            padding="same",
+            padding="same", name="last",
         )
 
         # TODO consider fc layer out?
 
     def call(self, x):
-        # print("x", x.shape)
-        encoded_1 = self.batch_norm_1(
-            self.encode_1(x)
-        )
-        # print("encoded_1", encoded_1.shape)
-        level_2_down_input = self.downsample_12(encoded_1)
-        # print("l2 down shape", level_2_down_input.shape)
-        
-        encoded_2 = self.batch_norm_2(
-            self.encode_2(level_2_down_input)
-        )
-        del level_2_down_input
-        # print("encoded_2", encoded_2.shape)
-        level_3_input = self.downsample_23(encoded_2)
-        # print("l3 in", level_3_input.shape)
+        # tf.print("IN", x[0])
+        encodeds = deque(maxlen=len(self.encoders))
+        for encoder in self.encoders:
+            x, encoded = encoder(x)
+            encodeds.append(encoded)
 
-        level_3_output = self.batch_norm_3(
-            self.level_3(level_3_input)
-        )
-        del level_3_input
+        # tf.print("encoded", x[0])
 
-        # Consider fully connected in middle
-        # print("l3 out", level_3_output.shape)
-        upsampled_from_3 = self.upsample_32(level_3_output)
-        # print("l3 ups", upsampled_from_3.shape)
-        # print("Catting with encoded2", encoded_2.shape)
-        level_2_up_input = self.concat_last_2(
-            (upsampled_from_3, encoded_2)
-        )
-        del upsampled_from_3, encoded_2
-        # print("catted shape", level_2_up_input.shape)
-        decoded_2 = self.decode_2(level_2_up_input)
-        # print("decoded shape 2", decoded_2.shape)
+        for action in self.bottom_block:
+            x = action(x)
+        # tf.print("Bottom", x[0])
 
-        upsampled_from_2 = self.upsample_21(decoded_2)
-        # print("Upsampled from 2", upsampled_from_2.shape)
-        del decoded_2
-        level_1_up_input = self.concat_last_1(  # or Concatenate(axis=-1)((x, y))
-            (upsampled_from_2, encoded_1)
-        )
-        del upsampled_from_2, encoded_1
-        decoded_1 = self.decode_1(level_1_up_input)
-        del level_1_up_input
+        for decoder in self.decoders:
+            x = decoder(x, encodeds.pop())
 
-        return self.out_layer(decoded_1)
+        # tf.print("decoded", x[0])
+
+        assert not encodeds
+
+        return self.out_layer(x)
