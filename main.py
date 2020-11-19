@@ -1,5 +1,7 @@
 import os
+import sys
 import math
+import datetime
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.callbacks as cbks
@@ -8,6 +10,9 @@ from models.unet_2d import UNet2D
 from models.mobile_net_example import UNetExample
 
 tf.keras.backend.set_floatx('float32')
+
+
+# TODO see the custom log metrics function for tensorboard
 
 
 def load_data(
@@ -109,22 +114,29 @@ def define_callbacks(
         # Defaults
         cooldown=0, mode='auto',
     )
+    
+    log_dir = "tb_logs/" +\
+        datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     tensorboard = cbks.TensorBoard(
-        log_dir='tb_logs',
+        log_dir=log_dir, update_freq='epoch',  # profile_batch=0,
+        histogram_freq=1,
         # Defaults
-        # Apparently can't do histograms with generators
-        histogram_freq=0, write_graph=True, write_images=False,
-        update_freq='epoch', profile_batch=2, embeddings_freq=0,
-        embeddings_metadata=None
+        # Bug reported elsewhere: can't do histograms with generators
+        write_graph=True, write_images=False,
+        embeddings_freq=0, embeddings_metadata=None
     )
 
     return [early_stop, reduce_plateau, tensorboard]
 
 
 if __name__ == "__main__":
-    
+
+
     # CONFIGURE
-    weights_file = "mobile_net_weights.h5"
+    unet = True
+    mobile_net = False
+    weights_file = sys.argv[1]
+    print ("WEIGHTS", weights_file)
     train_batch_size = val_batch_size = 64
     trn_split, val_split = 0.8, 0.2  # taken out of training only
     optim = tf.keras.optimizers.Adam(
@@ -133,7 +145,9 @@ if __name__ == "__main__":
     loss = tf.keras.losses.CategoricalCrossentropy(
          label_smoothing=0.1  # add custom here
     )
-    callbacks = define_callbacks()
+
+    if not os.path.exists(weights_file):
+        callbacks = define_callbacks()
 
     # DATA
     xs, ys = load_data(
@@ -141,24 +155,25 @@ if __name__ == "__main__":
         #   "sample_data", "combined_sample.npy", "segmented_sample.npy"
         # number=200,
     )
-    
-    # Indicate grayscale
-    # xs = np.expand_dims(xs, axis=-1).astype(np.float32)
 
     # Mobilenet (RGB)
-    xs = np.repeat(xs[..., np.newaxis], 3, -1).astype(np.float32)
-    xs = tf.image.resize(
-        xs, (96, 96),
-        # DEFAULTS
-        method=tf.image.ResizeMethod.BILINEAR,
-        preserve_aspect_ratio=False, antialias=False, name=None
-    )
-    ys = tf.image.resize(
-        ys, (96, 96),
-        # DEFAULTS
-        method=tf.image.ResizeMethod.NEAREST_NEIGHBOR, 
-        preserve_aspect_ratio=False, antialias=False, name=None
-    )
+    if mobile_net:
+        xs = np.repeat(xs[..., np.newaxis], 3, -1).astype(np.float32)
+        xs = tf.image.resize(
+            xs, (96, 96),
+            # DEFAULTS
+            method=tf.image.ResizeMethod.BILINEAR,
+            preserve_aspect_ratio=False, antialias=False, name=None
+        )
+        ys = tf.image.resize(
+            ys, (96, 96),
+            # DEFAULTS
+            method=tf.image.ResizeMethod.NEAREST_NEIGHBOR, 
+            preserve_aspect_ratio=False, antialias=False, name=None
+        )
+    elif unet:
+        # Indicate grayscale
+        xs = np.expand_dims(xs, axis=-1).astype(np.float32)
     ###
     
     input_shape = (None, *xs.shape[1:])
@@ -179,7 +194,10 @@ if __name__ == "__main__":
         del train_xs, train_ys
 
     print("Making model")
-    model = UNetExample(input_shape[1:], n_classes)
+    if mobile_net:
+        model = UNetExample(input_shape[1:], n_classes)
+    elif unet:
+        model = UNet2D(input_shape[1:], n_classes)
     model.build(input_shape=input_shape)
     model.summary()
     
@@ -217,7 +235,7 @@ if __name__ == "__main__":
     # TEST
     test_accuracy = tf.keras.metrics.Accuracy()
 
-    for (x, y) in zip(test_xs[:100], test_ys[:100]):
+    for (x, y) in zip(test_xs, test_ys):
         logits = model(np.expand_dims(x, axis=0) / 255)  # rescale
         prediction = tf.argmax(logits, axis=-1, output_type=tf.int32)
         flat_y = tf.argmax(np.expand_dims(y, axis=0), axis=-1)
