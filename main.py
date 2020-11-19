@@ -2,6 +2,7 @@ import os
 import sys
 import math
 import datetime
+import shutil
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.callbacks as cbks
@@ -10,9 +11,6 @@ from models.unet_2d import UNet2D
 from models.mobile_net_example import UNetExample
 
 tf.keras.backend.set_floatx('float32')
-
-
-# TODO see the custom log metrics function for tensorboard
 
 
 def load_data(
@@ -96,21 +94,23 @@ def split_data(dset, split=(0.6, 0.2, 0.2), shuffle=True):
 
 
 def define_callbacks(
-        es_delta=0.0001, es_patience=10,
-        rlr_factor=0.33, rlr_patience=5, rlr_delta=0.001, rlr_min=0.001,
+        es_delta=0.0001, es_patience=8,
+        rlr_factor=0.33, rlr_patience=4, 
+        rlr_delta=0.001, rlr_min=0.00001,
 ):
 
     early_stop = cbks.EarlyStopping(
-        monitor='val_loss', min_delta=es_delta, patience=es_patience,
-        restore_best_weights=True, verbose=1, 
+        monitor='val_loss', min_delta=es_delta,
+        patience=es_patience, verbose=1,
+        restore_best_weights=True,
         # Defaults
         mode='auto', baseline=None
     )
 
     reduce_plateau = cbks.ReduceLROnPlateau(
-        monitor='val_loss', factor=0.33, patience=5,
-        min_delta=0.001, min_lr=0.001,
-        verbose=1,
+        monitor='val_loss', factor=rlr_factor,
+        patience=rlr_patience, min_delta=rlr_delta, 
+        min_lr=rlr_min, verbose=1,
         # Defaults
         cooldown=0, mode='auto',
     )
@@ -131,32 +131,29 @@ def define_callbacks(
 
 if __name__ == "__main__":
 
+    exp_dir = os.path.join("experiments", sys.argv[1])
+    os.makedirs(exp_dir, exist_ok=True)
+    weights_file = os.path.join(exp_dir, "weights.h5")
+    pretrained = os.path.exists(weights_file)
+    print("Weights", weights_file, "pretrained:", pretrained)
 
     # CONFIGURE
-    unet = True
-    mobile_net = False
-    weights_file = sys.argv[1]
-    print ("WEIGHTS", weights_file)
-    train_batch_size = val_batch_size = 64
-    trn_split, val_split = 0.8, 0.2  # taken out of training only
-    optim = tf.keras.optimizers.Adam(
-        learning_rate=0.0001,
-    )
-    loss = tf.keras.losses.CategoricalCrossentropy(
-         label_smoothing=0.1  # add custom here
-    )
+    config_file = os.path.join(exp_dir, "config.py")
+    if not os.path.exists(config_file):
+        shutil.copy("template_config.py", config_file)
+    exec(open(config_file).read(), globals(), locals())
 
-    if not os.path.exists(weights_file):
-        callbacks = define_callbacks()
+    if not pretrained:
+        callbacks = define_callbacks(**callback_args)
 
-    # DATA
+    # SELECT DATA
     xs, ys = load_data(
         "/export/home/jamesb/Downloads/kaggle/"
         #   "sample_data", "combined_sample.npy", "segmented_sample.npy"
         # number=200,
     )
 
-    # Mobilenet (RGB)
+    # Mobilenet (to RGB)
     if mobile_net:
         xs = np.repeat(xs[..., np.newaxis], 3, -1).astype(np.float32)
         xs = tf.image.resize(
@@ -179,12 +176,11 @@ if __name__ == "__main__":
     input_shape = (None, *xs.shape[1:])
     n_classes = ys.shape[-1]
     print("Input data shape", input_shape)
-
     train_xs, test_xs = split_data(xs, (trn_split, 1.-trn_split), shuffle=False)
     train_ys, test_ys = split_data(ys, (trn_split, 1.-trn_split), shuffle=False)
     del xs, ys
 
-    if not os.path.exists(weights_file):
+    if not pretrained:
         print("Making dataset generator")
         training_generator, validation_generator = make_generator(
             train_xs, train_ys, trn_split, val_split,
@@ -197,12 +193,15 @@ if __name__ == "__main__":
     if mobile_net:
         model = UNetExample(input_shape[1:], n_classes)
     elif unet:
-        model = UNet2D(input_shape[1:], n_classes)
+        model = UNet2D(
+            input_shape[1:], n_classes, 
+            encoding, decoding
+        )
     model.build(input_shape=input_shape)
     model.summary()
-    
+
     # TRAIN
-    if os.path.exists(weights_file):
+    if pretrained:
         model.load_weights(weights_file)
     else:
         model.compile(
@@ -216,7 +215,7 @@ if __name__ == "__main__":
         model.fit(
             x=training_generator,
             validation_data=validation_generator,
-            epochs=500,
+            epochs=max_epochs,
             callbacks=callbacks,
             shuffle=False,  # already shuffled
             # Defaults. Ignore steps and batches;
@@ -232,7 +231,7 @@ if __name__ == "__main__":
         )
         model.save_weights(weights_file)
 
-    # TEST
+    # TEST. TODO - get a per-class accuracy?
     test_accuracy = tf.keras.metrics.Accuracy()
 
     for (x, y) in zip(test_xs, test_ys):
@@ -241,4 +240,9 @@ if __name__ == "__main__":
         flat_y = tf.argmax(np.expand_dims(y, axis=0), axis=-1)
         test_accuracy(prediction, flat_y)
 
-    print("Test set accuracy: {:.3%}".format(test_accuracy.result()))
+    result_string = "Test set accuracy: {:.3%}".format(
+        test_accuracy.result()
+    )
+    print(result_string)
+    with open(os.path.join(exp_dir, "results.txt"), "w") as rf:
+        rf.write(result_string)
