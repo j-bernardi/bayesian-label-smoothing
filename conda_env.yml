@@ -1,6 +1,9 @@
 name: py38
 channels:
   - defaults
+  - rapidsai
+  - nvidia
+  - conda-forge
 dependencies:
   - _libgcc_mutex=0.1=main
   - _tflow_select=2.3.0=eigen
@@ -82,4 +85,7 @@ dependencies:
   - yarl=1.6.2=py38h7b6447c_0
   - zipp=3.4.0=pyhd3eb1b0_0
   - zlib=1.2.11=h7b6447c_3
-prefix: /home/james/anaconda3/envs/py38
+  - pip:
+    - tensorflow-examples==1b0de3e6e5b52c9b4cb800f50830f7493229b009-
+prefix: /export/home/jamesb/anaconda3/envs/py38
+
