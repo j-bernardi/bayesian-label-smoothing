@@ -43,14 +43,19 @@ def make_generator(
     generator = tf.keras.preprocessing.image.ImageDataGenerator(
         rescale=1./255,
         validation_split=(val_split / train_split),
+        rotation_range=8.0,
+        width_shift_range=1.5,
+        height_shift_range=1.5,
+        shear_range=0.0,
+        zoom_range=0.05,
         # Defaults
         featurewise_center=False, samplewise_center=False,
         featurewise_std_normalization=False, samplewise_std_normalization=False,
-        zca_whitening=False, zca_epsilon=1e-06, rotation_range=0, width_shift_range=0.0,
-        height_shift_range=0.0, brightness_range=None, shear_range=0.0, zoom_range=0.0,
+        zca_whitening=False, zca_epsilon=1e-06,
+        brightness_range=None,
         channel_shift_range=0.0, fill_mode='nearest', cval=0.0, horizontal_flip=False,
         vertical_flip=False, preprocessing_function=None,
-        data_format=None, dtype=None
+        data_format=None, dtype=None,
     )
     training_generator = generator.flow(
         x=train_xs, y=train_ys, batch_size=train_batch_size,
@@ -102,7 +107,7 @@ def define_callbacks(
 
     early_stop = cbks.EarlyStopping(
         monitor='val_loss', min_delta=es_delta,
-        patience=es_patience, verbose=1,
+        patience=es_patience, verbose=2,
         restore_best_weights=True,
         # Defaults
         mode='auto', baseline=None
@@ -111,7 +116,7 @@ def define_callbacks(
     reduce_plateau = cbks.ReduceLROnPlateau(
         monitor='val_loss', factor=rlr_factor,
         patience=rlr_patience, min_delta=rlr_delta, 
-        min_lr=rlr_min, verbose=1,
+        min_lr=rlr_min, verbose=2,
         # Defaults
         cooldown=0, mode='auto',
     )    
@@ -231,6 +236,7 @@ if __name__ == "__main__":
             # Defaults. Ignore steps and batches;
             # generators handle more cleanly
             # (and with repeat data)
+            verbose=2,
             class_weight=None,
             sample_weight=None,
             initial_epoch=0,
