@@ -33,6 +33,7 @@ class UNet2D(tf.keras.Model):
         #   Adding another level of depth (and experiment 
         #   with 2x conv, 1x conv...)
         ############
+        self.unbuilt = True
 
         # Defaults
         if not encoding:
@@ -121,12 +122,22 @@ class UNet2D(tf.keras.Model):
             x, encoded = encoder(x)
             encodeds.append(encoded)
 
+        if self.unbuilt:
+            print("Bottom layer input", x.shape)
+
         for action in self.bottom_block:
             x = action(x)
 
+        if self.unbuilt:
+            print("Bottom layer output", x.shape)
+
         for decoder in self.decoders:
             x = decoder(x, encodeds.pop())
-
         assert not encodeds
+        self.unbuilt = False
 
-        return self.out_layer(x)
+        x = self.out_layer(x)
+
+        if self.unbuilt:
+            print("Output", x.shape)        
+        return x
