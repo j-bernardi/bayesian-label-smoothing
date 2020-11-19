@@ -94,9 +94,10 @@ def split_data(dset, split=(0.6, 0.2, 0.2), shuffle=True):
 
 
 def define_callbacks(
-        es_delta=0.0001, es_patience=8,
-        rlr_factor=0.33, rlr_patience=4, 
-        rlr_delta=0.001, rlr_min=0.00001,
+    exp_dir,
+    es_delta=0.0001, es_patience=8,
+    rlr_factor=0.33, rlr_patience=4, 
+    rlr_delta=0.001, rlr_min=0.00001,
 ):
 
     early_stop = cbks.EarlyStopping(
@@ -113,10 +114,11 @@ def define_callbacks(
         min_lr=rlr_min, verbose=1,
         # Defaults
         cooldown=0, mode='auto',
+    )    
+    log_dir = (
+        f"tb_logs/{exp_dir}-"
+        f"{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
     )
-    
-    log_dir = "tb_logs/" +\
-        datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     tensorboard = cbks.TensorBoard(
         log_dir=log_dir, update_freq='epoch',  # profile_batch=0,
         histogram_freq=1,
@@ -131,26 +133,31 @@ def define_callbacks(
 
 if __name__ == "__main__":
 
-    exp_dir = os.path.join("experiments", sys.argv[1])
+    if sys.argv[1].startswith("experiments"):
+        exp_dir = sys.argv[1]
+    else:
+        exp_dir = os.path.join(
+            "experiments", sys.argv[1]).strip(os.sep)
     os.makedirs(exp_dir, exist_ok=True)
     weights_file = os.path.join(exp_dir, "weights.h5")
     pretrained = os.path.exists(weights_file)
     print("Weights", weights_file, "pretrained:", pretrained)
 
     # CONFIGURE
+    central = None  # temp, not all configs have it
     config_file = os.path.join(exp_dir, "config.py")
     if not os.path.exists(config_file):
         shutil.copy("template_config.py", config_file)
     exec(open(config_file).read(), globals(), locals())
 
     if not pretrained:
-        callbacks = define_callbacks(**callback_args)
+        callbacks = define_callbacks(exp_dir, **callback_args)
 
     # SELECT DATA
     xs, ys = load_data(
         "/export/home/jamesb/Downloads/kaggle/"
-        #   "sample_data", "combined_sample.npy", "segmented_sample.npy"
         # number=200,
+        # "sample_data", "combined_sample.npy", "segmented_sample.npy"
     )
 
     # Mobilenet (to RGB)
@@ -180,6 +187,20 @@ if __name__ == "__main__":
     train_ys, test_ys = split_data(ys, (trn_split, 1.-trn_split), shuffle=False)
     del xs, ys
 
+
+    print("Making model")
+    if mobile_net:
+        model = UNetExample(input_shape[1:], n_classes)
+    elif unet:
+        model = UNet2D(
+            input_shape[1:], n_classes, 
+            encoding=encoding,
+            decoding=decoding,
+            central=central,
+        )
+    model.build(input_shape=input_shape)
+    model.summary()
+
     if not pretrained:
         print("Making dataset generator")
         training_generator, validation_generator = make_generator(
@@ -188,17 +209,6 @@ if __name__ == "__main__":
         )
         train_samples = len(train_xs)
         del train_xs, train_ys
-
-    print("Making model")
-    if mobile_net:
-        model = UNetExample(input_shape[1:], n_classes)
-    elif unet:
-        model = UNet2D(
-            input_shape[1:], n_classes, 
-            encoding, decoding
-        )
-    model.build(input_shape=input_shape)
-    model.summary()
 
     # TRAIN
     if pretrained:
