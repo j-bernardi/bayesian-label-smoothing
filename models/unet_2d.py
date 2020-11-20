@@ -4,7 +4,9 @@ import tensorflow.keras.layers as kl
 from collections import deque
 
 from models.blocks import EncodeBlock, DecodeBlock
-
+from defaults.default_model_config import (
+    default_encoder, default_decoder, default_central
+)
 
 class UNet2D(tf.keras.Model):
  
@@ -29,40 +31,12 @@ class UNet2D(tf.keras.Model):
 
         ### TODO ###
         # Adding one FC at the bottom
-        #   Experiment with 2x conv, 1x conv at each layer
-        #   Adding another level of depth (and experiment 
-        #   with 2x conv, 1x conv...)
         ############
         self.unbuilt = True
 
-        # Defaults
-        if not encoding:
-            encoding = {
-                "layer_1_2": {
-                    "num_filters_out": 16,
-                    "num_convs": 1,
-                },
-                "layer_2_3": {
-                    "num_filters_out": 32,
-                    "num_convs": 1,
-                },
-            }
-        if not decoding:
-            decoding = {
-                "layer_3_2": {
-                    "num_filters_out": 32,
-                    "num_convs": 1,
-                },
-                "layer_2_1": {
-                    "num_filters_out": 16,
-                    "num_convs": 1,
-                },
-            }
-        if not central:
-            central = {
-                "num_filters_out": 64,
-                "num_convs": 1,
-            }
+        econding = encoding or default_encoder
+        decoding = decoding or default_encoder
+        central = central or default_central
 
         self.encoders = []
         self.decoders = []

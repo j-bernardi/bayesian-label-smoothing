@@ -25,7 +25,7 @@ decoding = {
     },
 }
 
-max_epochs = 500
+max_epochs = 1  # 500
 train_batch_size = 64
 val_batch_size = 1000
 
@@ -35,11 +35,12 @@ trn_split = 0.8
 val_split = 0.2
 
 optim = tf.keras.optimizers.Adam(
-    learning_rate=0.0001,
+    learning_rate=0.001,
 )
 
 loss = tf.keras.losses.CategoricalCrossentropy(
     # label_smoothing=0.1  # add custom here
+    from_logits=True,
 )
 
 callback_args = {

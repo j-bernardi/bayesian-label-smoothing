@@ -9,13 +9,13 @@ import tensorflow.keras.callbacks as cbks
 import matplotlib.pyplot as plt
 
 from models.unet_2d import UNet2D
-from models.mobile_net_example import UNetExample
+# from models.mobile_net_example import UNetExample
 
 tf.keras.backend.set_floatx('float32')
 
 
 def load_data(
-        loc="/media/sf_Ubuntu_Shared/datasets/multi_digit_mnist/",
+        loc="data",
         combined_nm="combined.npy",
         segmented_nm="segmented.npy",
         number=-1,
@@ -173,7 +173,8 @@ if __name__ == "__main__":
     central = None  # temp, not all configs have it
     config_file = os.path.join(exp_dir, "config.py")
     if not os.path.exists(config_file):
-        shutil.copy("template_config.py", config_file)
+        print("No config, using default")
+        config_file = os.path.join("defaults", "template_config.py")
     exec(open(config_file).read(), globals(), locals())
 
     if not pretrained:
