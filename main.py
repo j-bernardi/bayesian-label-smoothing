@@ -44,11 +44,11 @@ def make_generator(
     generator = tf.keras.preprocessing.image.ImageDataGenerator(
         rescale=1./255,
         validation_split=(val_split / train_split),
-        rotation_range=8.0,
-        width_shift_range=1.5,
-        height_shift_range=1.5,
+        rotation_range=10.0,
+        width_shift_range=2.,
+        height_shift_range=2.,
         shear_range=0.0,
-        zoom_range=0.05,
+        zoom_range=0.1,
         # Defaults
         featurewise_center=False, samplewise_center=False,
         featurewise_std_normalization=False, samplewise_std_normalization=False,
@@ -122,8 +122,10 @@ def define_callbacks(
         cooldown=0, mode='auto',
     )    
     log_dir = (
-        f"tb_logs/{exp_dir}-"
-        f"{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
+        os.path.join(
+            "tb_logs",
+            f"{exp_dir}-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
+        )
     )
     tensorboard = cbks.TensorBoard(
         log_dir=log_dir, update_freq='epoch',  # profile_batch=0,
@@ -163,7 +165,8 @@ if __name__ == "__main__":
         exp_dir = sys.argv[1]
     else:
         exp_dir = os.path.join(
-            "experiments", sys.argv[1]).strip(os.sep)
+            "experiments", sys.argv[1].strip(os.sep)
+        )
     os.makedirs(exp_dir, exist_ok=True)
     weights_file = os.path.join(exp_dir, "weights.h5")
     pretrained = os.path.exists(weights_file)
@@ -182,7 +185,6 @@ if __name__ == "__main__":
 
     # SELECT DATA
     xs, ys = load_data(
-        "/export/home/jamesb/Downloads/kaggle/"
         # number=200,
         # "sample_data", "combined_sample.npy", "segmented_sample.npy"
     )

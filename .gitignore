@@ -3,3 +3,4 @@ tb_logs/
 checkpoint
 experiments/
 old_method_cache/
+data/
