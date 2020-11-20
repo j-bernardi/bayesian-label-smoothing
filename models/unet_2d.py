@@ -77,6 +77,7 @@ class UNet2D(tf.keras.Model):
             self.encoders.append(
                 EncodeBlock(**argdict, name=nm)
             )
+            # TODO - generalise for whatever in argdict
             encoded_shapes.append(
                 np.ceil(encoded_shapes[-1] / 2.).astype(np.int32)
             )
@@ -84,19 +85,19 @@ class UNet2D(tf.keras.Model):
         for es in encoded_shapes:
             print(es)
 
-        # BOTTOM LAYER
-        # Consider batchnorms, FC?
-        # Make configurable
-        self.bottom_block = [
-            kl.Conv2D(  # Encode at bottom layer
-                central["num_filters_out"], (2, 2),
-                strides=1, padding="same",
-                activation="relu",
-                kernel_initializer='he_normal',
-                name=f"bottom_{n}"
+        # BOTTOM LAYER, consider batchnorms..
+        self.bottom_block = []
+        for n in range(central["num_convs"]):
+            self.bottom_block.append(
+                kl.Conv2D(  # Encode at bottom layer
+                    central["num_filters_out"], (2, 2),
+                    strides=1, padding="same",
+                    activation=None,
+                    name=f"bottom_{n}",
+                )
             )
-            for n in range(central["num_convs"])
-        ]
+            self.bottom_block.append(kl.LeakyReLU())
+            
         encoded_shapes.pop(-1)  # Bottom shape not relevant
         # Consider flatten and fully connected here
         for nm, argdict in decoding.items():

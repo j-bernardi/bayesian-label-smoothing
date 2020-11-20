@@ -3,7 +3,6 @@ import tensorflow.keras.layers as kl
 from collections import deque
 
 # CONSIDER 
-#   Leaky Relu
 #   Reorg max pool before activation + BN
 
 
@@ -35,9 +34,11 @@ class DecodeBlock(tf.keras.layers.Layer):
             num_filters_out,
             kernel_size=transpose_kernel_size,
             strides=transpose_strides,
-            padding='same', activation="relu",
-            data_format=None, kernel_initializer='he_normal',
+            padding='same', activation=None,
+            data_format=None,
         )
+        self.activate_upsample = kl.LeakyReLU()
+
         self.concat = kl.Concatenate(axis=-1)
         self.crop_to_shape = crop_to_shape
 
@@ -47,9 +48,10 @@ class DecodeBlock(tf.keras.layers.Layer):
                 kl.Conv2D(
                     num_filters_out, kernel_size=kernel_size,
                     strides=strides, padding="same",
-                    activation="relu", kernel_initializer='he_normal',
+                    activation=None,
                 )
             )
+            self.convs.append(kl.LeakyReLU())
             if batchnorm_every:
                 self.convs.append(kl.BatchNormalization())
         if batchnorm_last and not batchnorm_every:
@@ -58,7 +60,8 @@ class DecodeBlock(tf.keras.layers.Layer):
     def call(self, x, tensor_for_concat):
         if self.unbuilt:
             print("Decode input", x.shape)
-        x = self.upsample(x)
+            print("Concating with old", tensor_for_concat.shape)
+        x = self.activate_upsample(self.upsample(x))
         if self.crop_to_shape is not None:
             if self.unbuilt:
                 print(
@@ -68,7 +71,7 @@ class DecodeBlock(tf.keras.layers.Layer):
             x = tf.image.resize_with_crop_or_pad(
                 x, *self.crop_to_shape
             )
-        x = self.concat((tensor_for_concat, x))
+        x = self.concat([tensor_for_concat, x])
         for conv in self.convs:
             x = conv(x)
         if self.unbuilt:
@@ -103,13 +106,14 @@ class EncodeBlock(tf.keras.layers.Layer):
                 kl.Conv2D(
                     filters=num_filters_out, 
                     kernel_size=kernel_size, strides=strides,
-                    padding='same', activation="relu",  # pad default "valid"
+                    padding='same', activation=None,  # pad default "valid"
                     data_format="channels_last",
-                    kernel_initializer='he_normal',
                 )
             )
+            self.convs.append(kl.LeakyReLU())
             if batchnorm_every:
                 self.convs.append(kl.BatchNormalization())
+        
         if batchnorm_last and not batchnorm_every:
             self.convs.append(kl.BatchNormalization())
 
