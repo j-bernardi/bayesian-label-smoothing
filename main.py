@@ -6,6 +6,7 @@ import shutil
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.callbacks as cbks
+import matplotlib.pyplot as plt
 
 from models.unet_2d import UNet2D
 from models.mobile_net_example import UNetExample
@@ -136,6 +137,26 @@ def define_callbacks(
     return [early_stop, reduce_plateau, tensorboard]
 
 
+def display(display_list):
+  plt.figure(figsize=(15, 15))
+
+  title = ['Input Image', 'True Mask', 'Predicted Mask']
+
+  for i in range(len(display_list)):
+    print(display_list[i].shape)
+    plt.subplot(1, len(display_list), i+1)
+    plt.title(title[i])
+    try:
+        disp = tf.keras.preprocessing.image.array_to_img(
+            display_list[i]
+        )
+    except:
+        disp = display_list[i]
+    plt.imshow(disp)
+    plt.axis('off')
+  plt.show()
+
+
 if __name__ == "__main__":
 
     if sys.argv[1].startswith("experiments"):
@@ -222,8 +243,9 @@ if __name__ == "__main__":
         model.compile(
             optimizer=optim,
             loss=loss,
+            metrics=['accuracy'],
             # Defaults
-            metrics=None, loss_weights=None,
+            loss_weights=None,
             weighted_metrics=None, run_eagerly=None,
         )
 
@@ -233,10 +255,10 @@ if __name__ == "__main__":
             epochs=max_epochs,
             callbacks=callbacks,
             shuffle=False,  # already shuffled
+            verbose=1,
             # Defaults. Ignore steps and batches;
             # generators handle more cleanly
             # (and with repeat data)
-            verbose=2,
             class_weight=None,
             sample_weight=None,
             initial_epoch=0,
@@ -255,6 +277,16 @@ if __name__ == "__main__":
         prediction = tf.argmax(logits, axis=-1, output_type=tf.int32)
         flat_y = tf.argmax(np.expand_dims(y, axis=0), axis=-1)
         test_accuracy(prediction, flat_y)
+
+    # Print some random
+    rand_idx = np.random.randint(0, len(test_xs))
+    rx = test_xs[rand_idx]
+    print("Input", rx)
+    ry = tf.argmax(test_ys[rand_idx], axis=-1)
+    rand_pred = tf.argmax(model(np.expand_dims(rx, axis=0) / 255), axis=-1)[0]
+    print("Pred", rand_pred)
+    print("True", ry)
+    display([rx, ry, rand_pred])
 
     result_string = "Test set accuracy: {:.3%}".format(
         test_accuracy.result()
