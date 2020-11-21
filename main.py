@@ -3,6 +3,7 @@ import sys
 import math
 import datetime
 import shutil
+import pickle
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.callbacks as cbks
@@ -171,6 +172,7 @@ if __name__ == "__main__":
         )
     os.makedirs(exp_dir, exist_ok=True)
     weights_file = os.path.join(exp_dir, "weights.h5")
+    history_file = os.path.join(exp_dir, "history.p")
     pretrained = os.path.exists(weights_file)
     print("Weights", weights_file, "pretrained:", pretrained)
 
@@ -243,6 +245,11 @@ if __name__ == "__main__":
     # TRAIN
     if pretrained:
         model.load_weights(weights_file)
+        history = None
+        if os.path.exists(history_file):
+            with open(history_file, "rb") as f:
+                history = pickle.load(f)
+            print("Loaded history", history_file)
     else:
         model.compile(
             optimizer=optim,
@@ -250,7 +257,8 @@ if __name__ == "__main__":
             metrics=['accuracy'],
             # Defaults
             loss_weights=None,
-            weighted_metrics=None, run_eagerly=None,
+            weighted_metrics=None,
+            run_eagerly=None,
         )
 
         train_report = model.fit(
@@ -271,39 +279,50 @@ if __name__ == "__main__":
             workers=1,
             use_multiprocessing=False
         )
+        history = train_report.history
         model.save_weights(weights_file)
+        with open(history_file, "wb") as f:
+            pickle.dump(history, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-        # LOG TRAINING
+    # LOG TRAINING
+    if history is not None:
         plt.figure()
-        epochs = len(train_report.history["loss"])
-        plt.plot(epochs, train_report.history["loss"], label="Training Loss")
-        plt.plot(epochs, train_report.history["val_loss"], label="Val Loss")
+        epochs = list(range(len(history["loss"])))
+        plt.plot(epochs, history["loss"], label="Training Loss")
+        plt.plot(epochs, history["val_loss"], label="Val Loss")
         plt.title("Losses")
         plt.xlabel("Epoch")
         plt.ylabel("Loss")
         plt.legend()
-        plt.savefig(os.path.join(exp_dir, "losses.png"))
+        if not os.path.exists(os.path.join(exp_dir, "losses.png")):
+            plt.savefig(os.path.join(exp_dir, "losses.png"))
 
     # TEST. TODO - batch
     print("Evaluating...")
-    cm = np.empty((n_classes, n_classes), dtype=np.int64)
+    cm = np.zeros((n_classes, n_classes), dtype=np.float64)
     for (x, y) in zip(test_xs, test_ys):
         logits = model(np.expand_dims(x, axis=0) / 255)  # rescale
         prediction = tf.argmax(logits, axis=-1, output_type=tf.int64)
         flat_y = tf.argmax(
             np.expand_dims(y, axis=0), axis=-1, output_type=tf.int64
         )
-        cm += tf.math.confusion_matrix(
+        img_confusion = tf.math.confusion_matrix(
             labels=tf.reshape(flat_y, [-1]),
             predictions=tf.reshape(prediction, [-1]),
             num_classes=n_classes, dtype=tf.int64,
         ).numpy()
+        cm += img_confusion 
     print("Complete")
-    # TODO CMs are not stable (on gpu?)
-    test_accuracy = np.sum(np.diagonal(cm)) / np.sum(cm)
-    # TODO - verify correctness:
-    test_accuracy_exc_background = np.sum(np.diagonal(cm)[:-1]) / np.sum(cm[:-1, :])
-    cm = cm / cm.sum(axis=1)[:, None]
+
+    # Process CM and save raw 
+    np.savetxt(os.path.join(exp_dir, "confusion.csv"), cm, delimiter=",")
+    cm = cm.astype('double')  # Cast, for calculations
+    total_accuracy = np.sum(np.diagonal(cm)) / np.sum(cm)
+    cm = cm / cm.sum(axis=1)[:, np.newaxis]
+    accuracy_per_class = np.diagonal(cm)  # TP accuracy
+    avg_accuracy_per_class = np.mean(accuracy_per_class)
+    avg_accuracy_per_target_class = np.mean(accuracy_per_class[:-1])
+
     # Display a random image
     rand_idx = np.random.randint(0, len(test_xs))
     rx = test_xs[rand_idx]
@@ -311,15 +330,20 @@ if __name__ == "__main__":
     rand_pred = tf.argmax(model(np.expand_dims(rx, axis=0) / 255), axis=-1)[0]
     display([rx, ry, rand_pred])
 
-    # Create file
-    result_string = "Test set accuracy: {:.3%}".format(test_accuracy)
-    result_string += "\n\nTest set accuracy exc background: {:.3%}".format(
-        test_accuracy_exc_background
+    # Create report
+    result_string = "Test set accuracy: {:.3%}".format(total_accuracy)
+    result_string += "\n\nAvg accuracy per class: {:.3%}".format(
+        avg_accuracy_per_class
     )
-    np.savetxt(os.path.join(exp_dir, "confusion.csv"), cm, delimiter=",")
+    result_string += "\n\nAvg accuracy per class exc background: {:.3%}".format(
+        avg_accuracy_per_target_class
+    )
     #  Beautify the output cm
     np.set_printoptions(precision=3, suppress=True)
     result_string += "\n\nConfusion:\n" + str(cm)
-    print(result_string)
+
+    # Write to file and display
     with open(os.path.join(exp_dir, "results.txt"), "w") as rf:
         rf.write(result_string)
+
+    print(result_string)
