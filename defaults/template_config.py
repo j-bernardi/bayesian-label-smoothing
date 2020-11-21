@@ -25,7 +25,7 @@ decoding = {
     },
 }
 
-max_epochs = 1  # 500
+max_epochs = 500
 train_batch_size = 64
 val_batch_size = 1000
 
