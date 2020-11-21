@@ -1,4 +1,4 @@
-name: py38
+name: py38-cpu
 channels:
   - defaults
   - rapidsai
