@@ -9,9 +9,11 @@ import tensorflow.keras.callbacks as cbks
 import matplotlib.pyplot as plt
 
 from models.unet_2d import UNet2D
-# from models.mobile_net_example import UNetExample
 
 tf.keras.backend.set_floatx('float32')
+
+
+# TODO try down-weighting the background with classweights, first
 
 
 def load_data(
@@ -23,6 +25,7 @@ def load_data(
 
     full_xs = np.load(os.path.join(loc, combined_nm)).astype(np.float32)
     full_ys = np.load(os.path.join(loc, segmented_nm)).astype(np.int32)
+    n_classes = full_ys.shape[-1]
 
     if number > 0:
         xs = full_xs[:number]
@@ -34,7 +37,7 @@ def load_data(
 
     print("LOADED DATA", xs.shape)
     print("LOADED LABELS", ys.shape)
-    return xs, ys
+    return xs, ys, n_classes
 
 
 def make_generator(
@@ -145,7 +148,6 @@ def display(display_list):
   title = ['Input Image', 'True Mask', 'Predicted Mask']
 
   for i in range(len(display_list)):
-    print(display_list[i].shape)
     plt.subplot(1, len(display_list), i+1)
     plt.title(title[i])
     try:
@@ -184,7 +186,7 @@ if __name__ == "__main__":
         callbacks = define_callbacks(exp_dir, **callback_args)
 
     # SELECT DATA
-    xs, ys = load_data(
+    xs, ys, n_classes = load_data(
         # number=200,
         # "sample_data", "combined_sample.npy", "segmented_sample.npy"
     )
@@ -210,7 +212,6 @@ if __name__ == "__main__":
     ###
     
     input_shape = (None, *xs.shape[1:])
-    n_classes = ys.shape[-1]
     print("Input data shape", input_shape)
     train_xs, test_xs = split_data(xs, (trn_split, 1.-trn_split), shuffle=False)
     train_ys, test_ys = split_data(ys, (trn_split, 1.-trn_split), shuffle=False)
@@ -252,7 +253,7 @@ if __name__ == "__main__":
             weighted_metrics=None, run_eagerly=None,
         )
 
-        model.fit(
+        train_report = model.fit(
             x=training_generator,
             validation_data=validation_generator,
             epochs=max_epochs,
@@ -272,28 +273,53 @@ if __name__ == "__main__":
         )
         model.save_weights(weights_file)
 
-    # TEST. TODO - get a per-class accuracy?
-    test_accuracy = tf.keras.metrics.Accuracy()
+        # LOG TRAINING
+        plt.figure()
+        epochs = len(train_report.history["loss"])
+        plt.plot(epochs, train_report.history["loss"], label="Training Loss")
+        plt.plot(epochs, train_report.history["val_loss"], label="Val Loss")
+        plt.title("Losses")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.legend()
+        plt.savefig(os.path.join(exp_dir, "losses.png"))
 
+    # TEST. TODO - batch
+    print("Evaluating...")
+    cm = np.empty((n_classes, n_classes), dtype=np.int64)
     for (x, y) in zip(test_xs, test_ys):
         logits = model(np.expand_dims(x, axis=0) / 255)  # rescale
-        prediction = tf.argmax(logits, axis=-1, output_type=tf.int32)
-        flat_y = tf.argmax(np.expand_dims(y, axis=0), axis=-1)
-        test_accuracy(prediction, flat_y)
-
-    # Print some random
+        prediction = tf.argmax(logits, axis=-1, output_type=tf.int64)
+        flat_y = tf.argmax(
+            np.expand_dims(y, axis=0), axis=-1, output_type=tf.int64
+        )
+        cm += tf.math.confusion_matrix(
+            labels=tf.reshape(flat_y, [-1]),
+            predictions=tf.reshape(prediction, [-1]),
+            num_classes=n_classes, dtype=tf.int64,
+        ).numpy()
+    print("Complete")
+    # TODO CMs are not stable (on gpu?)
+    test_accuracy = np.sum(np.diagonal(cm)) / np.sum(cm)
+    # TODO - verify correctness:
+    test_accuracy_exc_background = np.sum(np.diagonal(cm)[:-1]) / np.sum(cm[:-1, :])
+    cm = cm / cm.sum(axis=1)[:, None]
+    # Display a random image
     rand_idx = np.random.randint(0, len(test_xs))
     rx = test_xs[rand_idx]
-    print("Input", rx)
     ry = tf.argmax(test_ys[rand_idx], axis=-1)
     rand_pred = tf.argmax(model(np.expand_dims(rx, axis=0) / 255), axis=-1)[0]
-    print("Pred", rand_pred)
-    print("True", ry)
     display([rx, ry, rand_pred])
 
-    result_string = "Test set accuracy: {:.3%}".format(
-        test_accuracy.result()
+    # Create file
+    result_string = "Test set accuracy: {:.3%}".format(test_accuracy)
+    result_string += "\n\nTest set accuracy exc background: {:.3%}".format(
+        test_accuracy_exc_background
     )
+    np.savetxt(os.path.join(exp_dir, "confusion.csv"), cm, delimiter=",")
+    #  Beautify the output cm
+    np.set_printoptions(precision=3, suppress=True)
+    result_string += "\n\nConfusion:\n" + str(cm)
     print(result_string)
     with open(os.path.join(exp_dir, "results.txt"), "w") as rf:
         rf.write(result_string)
