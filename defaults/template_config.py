@@ -1,8 +1,6 @@
 import tensorflow as tf
 
 
-unet = True
-mobile_net = False
 encoding = {
     "layer_1_2": {
         "num_filters_out": 16,
@@ -34,14 +32,15 @@ trn_split = 0.8
 # Overalll % of data for valid, taken from training split
 val_split = 0.2
 
+class_weight_mode = "uniform"
+
 optim = tf.keras.optimizers.Adam(
     learning_rate=0.001,
 )
 
-loss = tf.keras.losses.CategoricalCrossentropy(
-    # label_smoothing=0.1  # add custom here
-    from_logits=True,
-)
+loss_args = {
+    # "label_smoothing": 0.1,
+}
 
 callback_args = {
     "es_delta": 0.0001,

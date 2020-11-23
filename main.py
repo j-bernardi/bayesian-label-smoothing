@@ -10,11 +10,9 @@ import tensorflow.keras.callbacks as cbks
 import matplotlib.pyplot as plt
 
 from models.unet_2d import UNet2D
+from utils import GLOBAL_TYPE, CustomWeightedCCE
 
-tf.keras.backend.set_floatx('float32')
-
-
-# TODO try down-weighting the background with classweights, first
+tf.keras.backend.set_floatx(GLOBAL_TYPE)
 
 
 def load_data(
@@ -103,6 +101,73 @@ def split_data(dset, split=(0.6, 0.2, 0.2), shuffle=True):
     return sets
 
 
+def get_class_weights(
+    n_classes, training_generator,
+    mode="uniform",
+    generator_length=-1,
+    background_idx=10,
+):
+    """Iterate training data to get balancing weights
+
+    Args:
+        n_classes: total number of classes
+        training_generator: when iterated for
+            num_training_batches (or completion, if non-repeating),
+            returns the whole set in batches of (x, labs)
+        generator_length: break the generator iteration, if
+            generator repeats (e.g. is infinite).
+        mode: Select mode from:
+            uniform: 1s
+            drop_background: set background_idx to 0.05 (else 1.)
+            balance_off_max: max value will be set to 1. Rest will be
+                max(a) / a for each value a (count of labels)
+            balance_off_min: min value will be set to 1. Rest will be
+                1 / a for each value a (count of labels)
+            balance_off_median: min value will be set to 1. Rest will be
+                1 / a for each value a (count of labels)
+    """
+    if mode == "uniform":
+        class_weights = {c: 1. for c in range(n_classes)}
+
+    elif mode == "drop_background":
+        # TEMP:  hardcoded 5%
+        class_weight_list = [1. for _ in range(n_classes)]
+        class_weight_list[background_idx] = 0.05
+        class_weights = {
+            c: class_weight_list[c] for c in range(n_classes)
+        }
+    else: 
+        class_sums = np.zeros((n_classes,), dtype=np.int64)
+        for b, (_, label) in enumerate(training_generator):
+            classes, _,  counts = tf.unique_with_counts(
+                tf.reshape(tf.argmax(label, axis=-1), [-1])
+            )
+            for i in range(len(classes)):
+                class_sums[classes[i]] += counts[i]
+            if b == generator_length:
+                break
+        balanced_weights = [
+            np.sum(class_sums) / class_sums[i]
+            for i in range(n_classes)
+        ]
+    if mode == "balance_off_max":
+        # "Max" class (background) has weight 1 so no divis.
+        class_weights = {
+            i: balanced_weights[i] for i in range(n_classes)
+        }
+    elif mode == "balance_off_min":
+        class_weights = {
+            i: balanced_weights[i] / np.max(balanced_weights)
+            for i in range(n_classes)
+        }
+    elif mode == "balance_off_med":
+        class_weights = {
+            i: balanced_weights[i] / np.median(balanced_weights)
+            for i in range(n_classes)
+        }
+    return class_weights
+
+
 def define_callbacks(
     exp_dir,
     es_delta=0.0001, es_patience=8,
@@ -170,6 +235,7 @@ if __name__ == "__main__":
         exp_dir = os.path.join(
             "experiments", sys.argv[1].strip(os.sep)
         )
+    data_num = int(sys.argv[2]) if len(sys.argv) > 2 else -1
     os.makedirs(exp_dir, exist_ok=True)
     weights_file = os.path.join(exp_dir, "weights.h5")
     history_file = os.path.join(exp_dir, "history.p")
@@ -189,47 +255,26 @@ if __name__ == "__main__":
 
     # SELECT DATA
     xs, ys, n_classes = load_data(
-        # number=200,
+        number=data_num,
         # "sample_data", "combined_sample.npy", "segmented_sample.npy"
     )
-
-    # Mobilenet (to RGB)
-    if mobile_net:
-        xs = np.repeat(xs[..., np.newaxis], 3, -1).astype(np.float32)
-        xs = tf.image.resize(
-            xs, (96, 96),
-            # DEFAULTS
-            method=tf.image.ResizeMethod.BILINEAR,
-            preserve_aspect_ratio=False, antialias=False, name=None
-        )
-        ys = tf.image.resize(
-            ys, (96, 96),
-            # DEFAULTS
-            method=tf.image.ResizeMethod.NEAREST_NEIGHBOR, 
-            preserve_aspect_ratio=False, antialias=False, name=None
-        )
-    elif unet:
-        # Indicate grayscale
-        xs = np.expand_dims(xs, axis=-1).astype(np.float32)
-    ###
-    
+    # Indicate grayscale
+    xs = np.expand_dims(xs, axis=-1).astype(np.float32)
     input_shape = (None, *xs.shape[1:])
     print("Input data shape", input_shape)
     train_xs, test_xs = split_data(xs, (trn_split, 1.-trn_split), shuffle=False)
     train_ys, test_ys = split_data(ys, (trn_split, 1.-trn_split), shuffle=False)
+    num_training_batches = len(train_xs) * trn_split // train_batch_size
     del xs, ys
 
-
+    # MAKE MODEL
     print("Making model")
-    if mobile_net:
-        model = UNetExample(input_shape[1:], n_classes)
-    elif unet:
-        model = UNet2D(
-            input_shape[1:], n_classes, 
-            encoding=encoding,
-            decoding=decoding,
-            central=central,
-        )
+    model = UNet2D(
+        input_shape[1:], n_classes, 
+        encoding=encoding,
+        decoding=decoding,
+        central=central,
+    )
     model.build(input_shape=input_shape)
     model.summary()
 
@@ -251,16 +296,27 @@ if __name__ == "__main__":
                 history = pickle.load(f)
             print("Loaded history", history_file)
     else:
+        print(f"Getting class weights {class_weight_mode}...")
+        class_weights = get_class_weights(
+            n_classes, training_generator,
+            mode=class_weight_mode,
+            generator_length=num_training_batches,
+        )
+        print("Class weights calculated", class_weights)
+        weighted_cce = CustomWeightedCCE(
+            class_weights=list(class_weights.values()),
+            from_logits=True,
+            **loss_args
+        )
         model.compile(
             optimizer=optim,
-            loss=loss,
+            loss=weighted_cce,
             metrics=['accuracy'],
             # Defaults
             loss_weights=None,
             weighted_metrics=None,
             run_eagerly=None,
         )
-
         train_report = model.fit(
             x=training_generator,
             validation_data=validation_generator,
@@ -271,8 +327,8 @@ if __name__ == "__main__":
             # Defaults. Ignore steps and batches;
             # generators handle more cleanly
             # (and with repeat data)
-            class_weight=None,
             sample_weight=None,
+            class_weight=None,  # handled with customLF
             initial_epoch=0,
             validation_freq=1,
             max_queue_size=10,
@@ -332,6 +388,8 @@ if __name__ == "__main__":
 
     # Create report
     result_string = "Test set accuracy: {:.3%}".format(total_accuracy)
+    if history is not None:
+        result_string += "\n\nFinal val loss: {:.3f}".format(history["val_loss"][-1])
     result_string += "\n\nAvg accuracy per class: {:.3%}".format(
         avg_accuracy_per_class
     )
