@@ -136,16 +136,10 @@ def get_class_weights(
         class_weights = {
             c: class_weight_list[c] for c in range(n_classes)
         }
-    else: 
-        class_sums = np.zeros((n_classes,), dtype=np.int64)
-        for b, (_, label) in enumerate(training_generator):
-            classes, _,  counts = tf.unique_with_counts(
-                tf.reshape(tf.argmax(label, axis=-1), [-1])
-            )
-            for i in range(len(classes)):
-                class_sums[classes[i]] += counts[i]
-            if b == generator_length:
-                break
+    else:
+        class_sums = class_sums_from_generator(
+            n_classes, training_generator, generator_length
+        )
         balanced_weights = [
             np.sum(class_sums) / class_sums[i]
             for i in range(n_classes)
