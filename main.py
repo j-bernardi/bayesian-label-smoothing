@@ -10,7 +10,8 @@ import tensorflow.keras.callbacks as cbks
 import matplotlib.pyplot as plt
 
 from models.unet_2d import UNet2D
-from utils import GLOBAL_TYPE, CustomWeightedCCE
+from utils import GLOBAL_TYPE
+from losses import CustomWeightedCCE
 
 tf.keras.backend.set_floatx(GLOBAL_TYPE)
 
