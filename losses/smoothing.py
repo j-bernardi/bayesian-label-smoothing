@@ -11,6 +11,7 @@ tf.keras.backend.set_floatx(GLOBAL_TYPE)
 ##   BUT bear in mind it's prop. to
 ##   number of pixels on a border vs in an area
 
+
 def fixed_uniform_smoothing(
     n_classes,
     fixed_smoothing_magnitude=0.9,
@@ -28,6 +29,7 @@ def fixed_uniform_smoothing(
         assert np.sum(smooth) == 1.
         smoothing_matrix[c] = smooth
     return smoothing_matrix
+
 
 def fixed_adjacent_smoothing(
     n_classes,
@@ -48,11 +50,11 @@ def fixed_adjacent_smoothing(
     smoothing_matrix = np.zeros((n_classes, n_classes))
 
     for c in range(n_classes):
-        adj_row = np.array(adjacency[c], copy=True)
+        remainder_adj_row = np.array(adjacency[c], copy=True)
         # Ignore self-adjacency. Magnitude doesn't affect.
         # Normalise off-diagonal
-        adj_row[c] = 0.
-        weights = adj_row / adj_row.sum()
+        remainder_adj_row[c] = 0.
+        weights = remainder_adj_row / remainder_adj_row.sum()
         # Fill smoothing into weighted amounts
         smoothing_matrix[c] =\
             np.ones(n_classes) * weights * (
@@ -61,6 +63,7 @@ def fixed_adjacent_smoothing(
         smoothing_matrix[c, c] = fixed_smoothing_magnitude
         assert np.sum(smoothing_matrix[c]) == 1.
     return smoothing_matrix
+
 
 def weighted_uniform_smoothing(
     n_classes,
@@ -71,19 +74,29 @@ def weighted_uniform_smoothing(
     """Smoothing matrix for weighted-uniform regime
     
     Return the label smoothing matrix for variable
-    magnitude smoothing, where magnitude is defined by
-    how adjacent is is to other classes (inverese prop.
-    to perim:volume) with other classes, smoothed
-    uniformly to other classes.
+    magnitude smoothing, where magnitude is defined by:
+        max_mag + (self-adj / (sum of others)) * (1-max_mag)
+    E.g.how adjacent is is to other classes vs itself
+    (inverese prop. to perim:volume) with other classes,
+    smoothed uniformly to other classes.
     """
-    raise NotImplementedError("Not yet implemented")
+
     smoothing_matrix = np.zeros((n_classes, n_classes))
     adjacency = adjacency_from_generator(
         n_classes, training_generator, generator_length
     )
-    # TODO - weight magnitude by self-adjacency
-    # Smooth uniformly
+    for c in range(n_classes):
+        self_adj_ratio = adjacency[c, c] / adjacency[c].sum()
+        label_adjustment = self_adj_ratio * (
+            1. - max_smoothing_magnitude
+        )
+        new_label_mag = max_smoothing_magnitude + label_adjustment
+        epsilon = (1. - new_label_mag) / (n_classes - 1)
+        smoothing_matrix[c, :] = epsilon
+        smoothing_matrix[c, c] = new_label_mag
+        assert smoothing_matrix[c].sum() == 1.
     return smoothing_matrix
+
 
 def weighted_adjacent_smoothing(
     n_classes,
@@ -92,12 +105,33 @@ def weighted_adjacent_smoothing(
     generator_length=-1,
 ):
     """Smoothing matrix for weighted-adjecent regime
-    Comment
+    
+    Return the label smoothing matrix for variable
+    magnitude smoothing, where magnitude is defined by:
+        max_mag + (self-adj / (sum of others)) * (1-max_mag)
+    E.g.how adjacent is is to other classes vs itself
+    (inverese prop. to perim:volume) with other classes,
+    smoothed weighted by adjacency to other classes.
     """
-    raise NotImplementedError("Not yet implemented")
     smoothing_matrix = np.zeros((n_classes, n_classes))
     adjacency = adjacency_from_generator(
         n_classes, training_generator, generator_length
     )
-    # TODO - weight magnitude and get adjacency
+    for c in range(n_classes):
+        self_adj_ratio = adjacency[c, c] / adjacency[c].sum()
+        label_adjustment = self_adj_ratio * (
+            1. - max_smoothing_magnitude
+        )
+        new_label_mag = max_smoothing_magnitude + label_adjustment
+        # Weight how the remainder is shared:
+        #   Ignore self-adjacency. Magnitude doesn't affect 
+        #   weighting. Then normalise the off-diagonal
+        remainder_adj_row = np.array(adjacency[c], copy=True)
+        remainder_adj_row[c] = 0.
+        weights = remainder_adj_row / remainder_adj_row.sum()
+
+        smoothing_matrix[c] =\
+            np.ones(n_classes) * weights * (1. - new_label_mag)
+        smoothing_matrix[c, c] = new_label_mag
+        assert smoothing_matrix[c].sum() == 1.
     return smoothing_matrix
