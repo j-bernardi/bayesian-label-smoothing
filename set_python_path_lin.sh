@@ -1,1 +1,2 @@
-"PYTHONPATH=$PYTHONPATH;$(pwd)" 
+#!/bin/bash
+export PYTHONPATH="$(pwd);$PYTHONPATH"
