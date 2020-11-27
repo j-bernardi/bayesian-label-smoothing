@@ -11,7 +11,13 @@ import matplotlib.pyplot as plt
 
 from models.unet_2d import UNet2D
 from utils import GLOBAL_TYPE
-from losses import CustomWeightedCCE
+from losses import (
+    CustomSmoothedWeightedCCE,
+    fixed_uniform_smoothing,
+    fixed_adjacent_smoothing,
+    weighted_uniform_smoothing,
+    weighted_adjacent_smoothing,
+)
 
 tf.keras.backend.set_floatx(GLOBAL_TYPE)
 
@@ -298,8 +304,16 @@ if __name__ == "__main__":
             generator_length=num_training_batches,
         )
         print("Class weights calculated", class_weights)
-        weighted_cce = CustomWeightedCCE(
+        print(f"Getting smoothing matrix {smoothing_function.__name__}")
+        if smoothing_function is None:
+            smoothing_matrix = None
+        else:
+            smoothing_matrix = smoothing_function(
+                n_classes, training_generator, num_training_batches
+            )
+        weighted_cce = CustomSmoothedWeightedCCE(
             class_weights=list(class_weights.values()),
+            label_smoothing=smoothing_matrix,
             from_logits=True,
             **loss_args
         )

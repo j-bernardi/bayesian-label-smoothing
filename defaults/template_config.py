@@ -1,5 +1,10 @@
 import tensorflow as tf
-
+from losses import (
+    fixed_uniform_smoothing,
+    fixed_adjacent_smoothing,
+    weighted_uniform_smoothing,
+    weighted_adjacent_smoothing,
+)
 
 encoding = {
     "layer_1_2": {
@@ -33,6 +38,16 @@ trn_split = 0.8
 val_split = 0.2
 
 class_weight_mode = "uniform"
+def smoothing_function(  # or smoothing_function = None
+    n_classes, training_generator, num_training_batches
+):
+    # Adapt function and args as desired
+    return fixed_adjacent_smoothing(
+        n_classes=n_classes,
+        training_generator=training_generator,
+        fixed_smoothing_magnitude=0.9,
+        generator_length=num_training_batches
+    )
 
 optim = tf.keras.optimizers.Adam(
     learning_rate=0.001,

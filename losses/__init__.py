@@ -6,5 +6,5 @@ from .smoothing import (
 )
 
 from .custom_loss import (
-	CustomWeightedCCE,
+	CustomSmoothedWeightedCCE,
 )
