@@ -2,5 +2,6 @@ __pycache__/
 tb_logs/
 checkpoint
 experiments/
+results/
 old_method_cache/
 data/

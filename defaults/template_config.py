@@ -38,6 +38,7 @@ trn_split = 0.8
 val_split = 0.2
 
 class_weight_mode = "uniform"
+drop_background = None
 def smoothing_function(  # or smoothing_function = None
     n_classes, training_generator, num_training_batches
 ):

@@ -113,6 +113,7 @@ def get_class_weights(
     mode="uniform",
     generator_length=-1,
     background_idx=10,
+    drop_background=0.10
 ):
     """Iterate training data to get balancing weights
 
@@ -139,7 +140,7 @@ def get_class_weights(
     elif mode == "drop_background":
         # TEMP:  hardcoded 5%
         class_weight_list = [1. for _ in range(n_classes)]
-        class_weight_list[background_idx] = 0.05
+        class_weight_list[background_idx] = drop_background
         class_weights = {
             c: class_weight_list[c] for c in range(n_classes)
         }
@@ -230,12 +231,8 @@ def display(display_list):
 
 if __name__ == "__main__":
 
-    if sys.argv[1].startswith("experiments"):
-        exp_dir = sys.argv[1]
-    else:
-        exp_dir = os.path.join(
-            "experiments", sys.argv[1].strip(os.sep)
-        )
+    exp_dir = sys.argv[1]
+    
     data_num = int(sys.argv[2]) if len(sys.argv) > 2 else -1
     os.makedirs(exp_dir, exist_ok=True)
     weights_file = os.path.join(exp_dir, "weights.h5")
@@ -302,6 +299,7 @@ if __name__ == "__main__":
             n_classes, training_generator,
             mode=class_weight_mode,
             generator_length=num_training_batches,
+            drop_background=drop_background,
         )
         print("Class weights calculated", class_weights)
         print(f"Getting smoothing matrix {smoothing_function.__name__}")
