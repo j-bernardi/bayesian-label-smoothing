@@ -10,7 +10,7 @@ import tensorflow.keras.callbacks as cbks
 import matplotlib.pyplot as plt
 
 from models.unet_2d import UNet2D
-from utils import GLOBAL_TYPE
+from utils import GLOBAL_TYPE, class_sums_from_generator
 from losses import (
     CustomSmoothedWeightedCCE,
     fixed_uniform_smoothing,
