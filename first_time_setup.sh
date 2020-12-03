@@ -2,8 +2,8 @@
 apt-get install wget git unzip vim libgl1-mesa-glx libegl1-mesa libxrandr2 libxrandr2 libxss1 libxcursor1 libxcomposite1 libasound2 libxi6 libxtst6 -y
 
 # Anaconda
-wget https://repo.anaconda.com/archive/Anaconda3-2020.11-Linux-x86_64.sh -O anaconda.sh
-bash anaconda.sh -b -p $HOME/anaconda3
+wget https://repo.anaconda.com/archive/Anaconda3-latest-Linux-x86_64.sh -O ./anaconda.sh
+sh anaconda.sh -b -p $HOME/anaconda3
 eval "$($HOME/anaconda3/bin/conda shell.bash hook)"
 conda init
 source $HOME/.bashrc
