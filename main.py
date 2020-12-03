@@ -29,20 +29,32 @@ def load_data(
         number=-1,
 ):
 
-    full_xs = np.load(os.path.join(loc, combined_nm)).astype(np.float32)
-    full_ys = np.load(os.path.join(loc, segmented_nm)).astype(np.int32)
-    n_classes = full_ys.shape[-1]
-
-    if number > 0:
-        xs = full_xs[:number]
-        ys = full_ys[:number]
-        del full_xs, full_ys
+    if number == "sample":
+        loc = "sample_data"
+        combined_nm = "combined_sample.npy"
+        segmented_nm = "segmented_sample.npy"
+        xs = np.load(os.path.join(loc, combined_nm)).astype(np.float32)
+        ys = np.load(os.path.join(loc, segmented_nm)).astype(np.int32)
     else:
-        xs = full_xs
-        ys = full_ys
+        full_xs = np.load(os.path.join(loc, combined_nm)).astype(np.float32)
+        full_ys = np.load(os.path.join(loc, segmented_nm)).astype(np.int32)
 
+        if number > 0:
+            xs = full_xs[:number]
+            ys = full_ys[:number]
+            del full_xs, full_ys
+        elif number < 0:
+            xs = full_xs
+            ys = full_ys
+        else:
+            raise ValueError(
+                f"Cannot run with {number} data, try \"sample\""
+            )
+
+    n_classes = ys.shape[-1]
     print("LOADED DATA", xs.shape)
     print("LOADED LABELS", ys.shape)
+    print("Classes", n_classes)
     return xs, ys, n_classes
 
 
@@ -230,10 +242,14 @@ def display(display_list):
 
 
 if __name__ == "__main__":
-
+    # ARGS
     exp_dir = sys.argv[1]
-    
-    data_num = int(sys.argv[2]) if len(sys.argv) > 2 else -1
+    if len(sys.argv) > 2:
+        if sys.argv[2] == "sample":
+            data_num = "sample"
+        else:
+            data_num = int(sys.argv[2])
+    # FILES
     os.makedirs(exp_dir, exist_ok=True)
     weights_file = os.path.join(exp_dir, "weights.h5")
     history_file = os.path.join(exp_dir, "history.p")
@@ -252,10 +268,7 @@ if __name__ == "__main__":
         callbacks = define_callbacks(exp_dir, **callback_args)
 
     # SELECT DATA
-    xs, ys, n_classes = load_data(
-        number=data_num,
-        # "sample_data", "combined_sample.npy", "segmented_sample.npy"
-    )
+    xs, ys, n_classes = load_data(number=data_num)
     # Indicate grayscale
     xs = np.expand_dims(xs, axis=-1).astype(np.float32)
     input_shape = (None, *xs.shape[1:])
@@ -343,7 +356,8 @@ if __name__ == "__main__":
             use_multiprocessing=False
         )
         history = train_report.history
-        model.save_weights(weights_file)
+        if data_num != "sample":
+            model.save_weights(weights_file)
         with open(history_file, "wb") as f:
             pickle.dump(history, f, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -357,8 +371,9 @@ if __name__ == "__main__":
         plt.xlabel("Epoch")
         plt.ylabel("Loss")
         plt.legend()
-        if not os.path.exists(os.path.join(exp_dir, "losses.png")):
-            plt.savefig(os.path.join(exp_dir, "losses.png"))
+        if data_num != "sample":
+            if not os.path.exists(os.path.join(exp_dir, "losses.png")):
+                plt.savefig(os.path.join(exp_dir, "losses.png"))
 
     # TEST. TODO - batch
     print("Evaluating...")
@@ -378,7 +393,8 @@ if __name__ == "__main__":
     print("Complete")
 
     # Process CM and save raw 
-    np.savetxt(os.path.join(exp_dir, "confusion.csv"), cm, delimiter=",")
+    if data_num != "sample":
+        np.savetxt(os.path.join(exp_dir, "confusion.csv"), cm, delimiter=",")
     cm = cm.astype('double')  # Cast, for calculations
     total_accuracy = np.sum(np.diagonal(cm)) / np.sum(cm)
     cm = cm / cm.sum(axis=1)[:, np.newaxis]
@@ -391,7 +407,8 @@ if __name__ == "__main__":
     rx = test_xs[rand_idx]
     ry = tf.argmax(test_ys[rand_idx], axis=-1)
     rand_pred = tf.argmax(model(np.expand_dims(rx, axis=0) / 255), axis=-1)[0]
-    display([rx, ry, rand_pred])
+    if data_num != "sample":
+        display([rx, ry, rand_pred])
 
     # Create report
     result_string = "Test set accuracy: {:.3%}".format(total_accuracy)
@@ -408,7 +425,8 @@ if __name__ == "__main__":
     result_string += "\n\nConfusion:\n" + str(cm)
 
     # Write to file and display
-    with open(os.path.join(exp_dir, "results.txt"), "w") as rf:
-        rf.write(result_string)
+    if data_num != "sample":
+        with open(os.path.join(exp_dir, "results.txt"), "w") as rf:
+            rf.write(result_string)
 
     print(result_string)
