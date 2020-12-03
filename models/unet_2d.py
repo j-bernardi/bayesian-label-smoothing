@@ -71,7 +71,7 @@ class UNet2D(tf.keras.Model):
                 )
             )
             self.bottom_block.append(kl.LeakyReLU())
-            
+
         encoded_shapes.pop(-1)  # Bottom shape not relevant
         # Consider flatten and fully connected here
         for nm, argdict in decoding.items():
@@ -91,9 +91,15 @@ class UNet2D(tf.keras.Model):
         # TODO consider fc layer out?
 
     def call(self, x):
+        if self.unbuilt:
+            print("UNet input", x.shape)
+            count = 1
 
         encodeds = deque(maxlen=len(self.encoders))
         for encoder in self.encoders:
+            if self.unbuilt:
+                print(f"Econder {count}, {encoder.name}")
+                count +=1 
             x, encoded = encoder(x)
             encodeds.append(encoded)
 
@@ -102,17 +108,21 @@ class UNet2D(tf.keras.Model):
 
         for action in self.bottom_block:
             x = action(x)
+            if self.unbuilt:
+                print("\tBottom block", action.name, x.shape)
 
         if self.unbuilt:
             print("Bottom layer output", x.shape)
 
         for decoder in self.decoders:
+            if self.unbuilt:
+                print("Decoder", count, decoder.name)
+                count -=1
             x = decoder(x, encodeds.pop())
         assert not encodeds
-        self.unbuilt = False
 
         x = self.out_layer(x)
-
         if self.unbuilt:
             print("Output", x.shape)        
+        self.unbuilt = False
         return x

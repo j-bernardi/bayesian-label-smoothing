@@ -54,28 +54,36 @@ class DecodeBlock(tf.keras.layers.Layer):
             self.convs.append(kl.LeakyReLU())
             if batchnorm_every:
                 self.convs.append(kl.BatchNormalization())
+
         if batchnorm_last and not batchnorm_every:
             self.convs.append(kl.BatchNormalization())
 
+
     def call(self, x, tensor_for_concat):
+
         if self.unbuilt:
-            print("Decode input", x.shape)
-            print("Concating with old", tensor_for_concat.shape)
+            print("\tDecode input", x.shape)
+            print("\tConcating with old", tensor_for_concat.shape)
+
         x = self.activate_upsample(self.upsample(x))
+
         if self.crop_to_shape is not None:
             if self.unbuilt:
-                print(
-                    "Cropping upsampled", x.shape,
-                    "to", self.crop_to_shape
-                )
-            x = tf.image.resize_with_crop_or_pad(
-                x, *self.crop_to_shape
-            )
+                print(f"\tCropping upsampled {x.shape} to {self.crop_to_shape}")
+            x = tf.image.resize_with_crop_or_pad(x, *self.crop_to_shape)
+
         x = self.concat([tensor_for_concat, x])
+
+        count = 1
         for conv in self.convs:
             x = conv(x)
+            if self.unbuilt:
+                print(f"\tConv {count}: {conv.name}, {x.shape}")
+                count += 1
+
         if self.unbuilt:
-            print("Decode output", x.shape)
+            print("\tDecode output", x.shape)
+
         self.unbuilt = False
         return x
 
@@ -125,18 +133,22 @@ class EncodeBlock(tf.keras.layers.Layer):
     def call(self, x):
 
         if self.unbuilt:
-            print("Encoder input", x.shape)
-
+            print("\tEncoder input", x.shape)
+            cnt = 1
         for conv in self.convs:
             x = conv(x)
+            if self.unbuilt:
+                print(f"\tConv {cnt}", conv.name, x.shape)
+                cnt += 1
 
         if self.unbuilt:
-            print("Conved, saving", x.shape)
+            print("\tConved, saving", x.shape)
 
         save = x
         x = self.downsample(x)
 
         if self.unbuilt:
-            print("Encoder output", x.shape)
+            print("\tEncoder output", x.shape)
+
         self.unbuilt = False
         return x, save
