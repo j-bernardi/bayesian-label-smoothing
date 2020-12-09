@@ -42,6 +42,8 @@ drop_background = None
 def smoothing_function(  # or smoothing_function = None
     n_classes, training_generator, num_training_batches
 ):
+    return 0
+
     # Adapt function and args as desired
     return fixed_adjacent_smoothing(
         n_classes=n_classes,

@@ -27,4 +27,4 @@ wget 'https://storage.googleapis.com/kaggle-data-sets/37151/56512/bundle/archive
 unzip data/download.zip -d data/
 
 # Test
-python main.py test 50
+python main.py test sample
