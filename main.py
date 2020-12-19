@@ -10,7 +10,7 @@ import tensorflow.keras.callbacks as cbks
 import matplotlib.pyplot as plt
 
 from models.unet_2d import UNet2D
-from utils import GLOBAL_TYPE, class_sums_from_generator
+from utils import GLOBAL_TYPE, class_sums_from_generator, Config
 from losses import (
     CustomSmoothedWeightedCCE,
     fixed_uniform_smoothing,
@@ -59,8 +59,12 @@ def load_data(
 
 
 def make_generator(
-        train_xs, train_ys, train_split, val_split,
-        train_batch_size, val_batch_size,
+        train_xs,
+        train_ys,
+        train_split,
+        val_split,
+        train_batch_size,
+        val_batch_size,
 ):
     generator = tf.keras.preprocessing.image.ImageDataGenerator(
         rescale=1./255,
@@ -257,46 +261,54 @@ if __name__ == "__main__":
     print("Weights", weights_file, "pretrained:", pretrained)
 
     # CONFIGURE
-    central = None  # temp, not all configs have it
     config_file = os.path.join(exp_dir, "config.py")
     if not os.path.exists(config_file):
         print("No config, using default")
-        config_file = os.path.join("defaults", "template_config.py")
-    exec(open(config_file).read(), globals(), locals())
+        config = Config()  # defaults
+    else:
+        exec(open(config_file).read(), globals(), locals())
 
+    # Fail early if invalid
     if not pretrained:
-        callbacks = define_callbacks(exp_dir, **callback_args)
+        callbacks = define_callbacks(exp_dir, **config.callback_args)
 
     # SELECT DATA
     xs, ys, n_classes = load_data(number=data_num)
-    # Indicate grayscale
-    xs = np.expand_dims(xs, axis=-1).astype(np.float32)
+    xs = np.expand_dims(xs, axis=-1).astype(np.float32)  # Indicate grayscale
     input_shape = (None, *xs.shape[1:])
     print("Input data shape", input_shape)
-    train_xs, test_xs = split_data(xs, (trn_split, 1.-trn_split), shuffle=False)
-    train_ys, test_ys = split_data(ys, (trn_split, 1.-trn_split), shuffle=False)
-    num_training_batches = len(train_xs) * trn_split // train_batch_size
+    split = (config.train_split, 1.-config.train_split)
+    train_xs, test_xs = split_data(xs, split, shuffle=False)
+    train_ys, test_ys = split_data(ys, split, shuffle=False)
+    num_training_batches = (
+        len(train_xs) * config.train_split // config.train_batch_size
+    )
     del xs, ys
 
     # MAKE MODEL
     print("Making model")
     model = UNet2D(
         input_shape[1:], n_classes, 
-        encoding=encoding,
-        decoding=decoding,
-        central=central,
+        encoding=config.encoding,
+        decoding=config.decoding,
+        central=config.central,
     )
     model.build(input_shape=input_shape)
     model.summary()
 
+    # Skip slow step if pretrained
     if not pretrained:
         print("Making dataset generator")
         training_generator, validation_generator = make_generator(
-            train_xs, train_ys, trn_split, val_split,
-            train_batch_size, val_batch_size,
+            train_xs,
+            train_ys,
+            config.train_split,
+            config.val_split,
+            config.train_batch_size,
+            config.val_batch_size,
         )
-        train_samples = len(train_xs)
-        del train_xs, train_ys
+    train_samples = len(train_xs)
+    del train_xs, train_ys
 
     # TRAIN
     if pretrained:
@@ -307,32 +319,34 @@ if __name__ == "__main__":
                 history = pickle.load(f)
             print("Loaded history", history_file)
     else:
-        print(f"Getting class weights {class_weight_mode}...")
+        print(f"Getting class weights {config.class_weight_mode}...")
         class_weights = get_class_weights(
-            n_classes, training_generator,
-            mode=class_weight_mode,
+            n_classes,
+            training_generator,
+            mode=config.class_weight_mode,
             generator_length=num_training_batches,
-            drop_background=drop_background,
+            drop_background=config.drop_background,
         )
         print("Class weights calculated", class_weights)
-        print(f"Getting smoothing matrix {smoothing_function.__name__}")
-        if smoothing_function is None:
+
+        print(f"Getting smoothing matrix {config.smoothing_function.__name__}")
+        if config.smoothing_function is None:
             smoothing_matrix = None
         else:
-            smoothing_matrix = smoothing_function(
+            smoothing_matrix = config.smoothing_function(
                 n_classes, training_generator, num_training_batches
             )
         weighted_cce = CustomSmoothedWeightedCCE(
             class_weights=list(class_weights.values()),
             label_smoothing=smoothing_matrix,
             from_logits=True,
-            **loss_args
+            **config.loss_args
         )
         model.compile(
-            optimizer=optim,
+            optimizer=config.optim,
             loss=weighted_cce,
             metrics=['accuracy'],
-            # Defaults
+            # Defaults to consider
             loss_weights=None,
             weighted_metrics=None,
             run_eagerly=None,
@@ -340,7 +354,7 @@ if __name__ == "__main__":
         train_report = model.fit(
             x=training_generator,
             validation_data=validation_generator,
-            epochs=max_epochs,
+            epochs=config.max_epochs,
             callbacks=callbacks,
             shuffle=False,  # already shuffled
             verbose=1,
@@ -389,7 +403,7 @@ if __name__ == "__main__":
             predictions=tf.reshape(prediction, [-1]),
             num_classes=n_classes, dtype=tf.int64,
         ).numpy()
-        cm += img_confusion 
+        cm += img_confusion
     print("Complete")
 
     # Process CM and save raw 

@@ -4,3 +4,5 @@ from .utils import (
 )
 
 from .globals import GLOBAL_TYPE
+
+from .config_def import Config

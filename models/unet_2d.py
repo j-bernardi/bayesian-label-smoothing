@@ -4,7 +4,7 @@ import tensorflow.keras.layers as kl
 from collections import deque
 
 from models.blocks import EncodeBlock, DecodeBlock
-from defaults.default_model_config import (
+from defaults.sample_model_layers import (
     default_encoder, default_decoder, default_central
 )
 
