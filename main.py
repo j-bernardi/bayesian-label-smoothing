@@ -389,8 +389,7 @@ if __name__ == "__main__":
         plt.ylabel("Loss")
         plt.legend()
         if data_num != "sample":
-            if not os.path.exists(os.path.join(exp_dir, "losses.png")):
-                plt.savefig(os.path.join(exp_dir, "losses.png"))
+            plt.savefig(os.path.join(exp_dir, "losses.png"))
 
     # TEST. TODO - batch
     print("Evaluating...")
