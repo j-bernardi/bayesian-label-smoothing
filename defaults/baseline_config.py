@@ -3,38 +3,43 @@ from utils import Config
 encoding = {
     "layer_1_2": {
         "num_filters_out": 32,
-        "kernel_size": 5,
-        "strides": 1,
-        "pool_size": 3,
-        "pool_strides": 2,
-    },
-    "layer_2_3": {
-        "num_filters_out": 64,
+        "num_convs": 2,
         "kernel_size": 5,
         "strides": 1,
         "pool_size": 3,
         "pool_strides": 2,
     },
 
+    "layer_2_3": {
+        "num_filters_out": 64,
+        "num_convs": 2,
+        "kernel_size": 5,
+        "strides": 1,
+        "pool_size": 3,
+        "pool_strides": 2,
+    },
 
     "layer_3_4": {
         "num_filters_out": 64,  # was 128
+        "num_convs": 2,
         "kernel_size": 5,
         "strides": 1,
         "pool_size": 3,
         "pool_strides": 2,
     },
 
-
     "layer_4_5": {
         "num_filters_out": 128,
+        "num_convs": 2,
         "kernel_size": 3,
         "strides": 1,
         "pool_size": 3,
         "pool_strides": 2,
     },
+
     "layer_5_6": {
         "num_filters_out": 128,
+        "num_convs": 2,
         "kernel_size": 3,
         "strides": 1,
         "pool_size": 3,
@@ -79,15 +84,16 @@ decoding = {
     },
 
     "layer_2_1": {
-        "num_filters_out": 32,
+        "num_filters_out": 32,  # was n class
         "transpose_kernel_size": 5,
         "transpose_strides": 2,
         "num_convs": 0,
     },
 }
 
+
 config = Config(
     encoding=encoding,
     central=central,
-    decoding=decoding
+    decoding=decoding,
 )
