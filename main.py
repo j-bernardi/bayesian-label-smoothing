@@ -4,6 +4,7 @@ import math
 import datetime
 import shutil
 import pickle
+import argparse
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.callbacks as cbks
@@ -226,45 +227,97 @@ def define_callbacks(
     return [early_stop, reduce_plateau, tensorboard]
 
 
-def display(display_list):
-  plt.figure(figsize=(15, 15))
+def display_multi(xs, ys, args):
+    """Display random n images, save to exp dir
 
-  title = ['Input Image', 'True Mask', 'Predicted Mask']
-
-  for i in range(len(display_list)):
-    plt.subplot(1, len(display_list), i+1)
-    plt.title(title[i])
-    try:
-        disp = tf.keras.preprocessing.image.array_to_img(
-            display_list[i]
-        )
-    except:
-        disp = display_list[i]
-    plt.imshow(disp)
+    """
     plt.axis('off')
-  plt.show()
+    fig, axes = plt.subplots(nrows=args.display, ncols=3, figsize=(15, 15))
+    title = ['Input Image', 'True Mask', 'Predicted Mask']
+    rand_idxs = np.random.choice(len(xs), size=args.display, replace=False)
+    for n, (rand_idx, plot_row) in enumerate(zip(rand_idxs, axes)):
+        # gather data
+        rand_x = xs[rand_idx]
+        rand_y = tf.argmax(ys[rand_idx], axis=-1)
+        rand_pred = tf.argmax(
+            model(np.expand_dims(rand_x, axis=0) / 255),
+            axis=-1
+        )[0]
+        display_list = [rand_x, rand_y, rand_pred]
+        
+        # Plot subplots
+        for i, plot_col in enumerate(plot_row):
+            if n == 0:
+                plot_col.set_title(title[i])
+            try:
+                disp = tf.keras.preprocessing.image.array_to_img(
+                    display_list[i]
+                )
+            except:
+                disp = display_list[i]
+            plot_col.imshow(disp)
+    
+    # Save and show
+    fig_file = os.path.join(args.exp_dir, "example_segment.png")
+    if overwrite(fig_file, args):
+        fig.savefig(fig_file)
+    plt.axis('on')  # reset
+
+
+def parse_my_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "exp_dir", type=str,
+        help="A path to an experiment directory, optionally including a "
+        "config.py file which contains a variable called config = Config(). "
+        "See defaults/baseline_config.py for example."
+    )
+    parser.add_argument(
+        "--data-num", "-n", default=-1,
+        help="Number of datapoints to train on, integer or \"sample\""
+             "to use sample data in repo"
+    )
+    parser.add_argument(
+        "--display", "-d", default=0, type=int,
+        help="Display n example images of the network at the end with pyplot"
+    )
+    parser.add_argument("--force", "-f", action="store_true",
+        help="Overwrites current weights and graphs"
+    )
+    args = parser.parse_args()
+
+    if args.data_num != "sample":
+        args.data_num = int(args.data_num)
+
+    return args
+
+
+def overwrite(filename, args):
+    """Whether to overwrite a file given arg config
+
+    Written out for clear logic
+    """
+    file_exists = os.path.exists(filename)
+    sample_run = args.data_num == "sample"
+
+    if sample_run or (file_exists and not args.force):
+        return False
+    else:
+        return True
 
 
 if __name__ == "__main__":
-    # ARGS
-    exp_dir = sys.argv[1]
-    if len(sys.argv) > 2:
-        if sys.argv[2] == "sample":
-            data_num = "sample"
-        else:
-            data_num = int(sys.argv[2])
-    else:
-        data_num = -1  # all
+    args = parse_my_args()
 
     # FILES
-    os.makedirs(exp_dir, exist_ok=True)
-    weights_file = os.path.join(exp_dir, "weights.h5")
-    history_file = os.path.join(exp_dir, "history.p")
-    pretrained = os.path.exists(weights_file)
-    print("Weights", weights_file, "pretrained:", pretrained)
+    os.makedirs(args.exp_dir, exist_ok=True)
+    weights_file = os.path.join(args.exp_dir, "weights.h5")
+    history_file = os.path.join(args.exp_dir, "history.p")
+    train = not os.path.exists(weights_file) and not args.force
+    print("Weights", weights_file, "training? :", train)
 
     # CONFIGURE
-    config_file = os.path.join(exp_dir, "config.py")
+    config_file = os.path.join(args.exp_dir, "config.py")
     if not os.path.exists(config_file):
         print("No config, using default")
         config = Config()  # defaults
@@ -272,11 +325,11 @@ if __name__ == "__main__":
         exec(open(config_file).read(), globals(), locals())
 
     # Fail early if invalid
-    if not pretrained:
-        callbacks = define_callbacks(exp_dir, **config.callback_args)
+    if train:
+        callbacks = define_callbacks(args.exp_dir, **config.callback_args)
 
     # SELECT DATA
-    xs, ys, n_classes = load_data(number=data_num)
+    xs, ys, n_classes = load_data(number=args.data_num)
     xs = np.expand_dims(xs, axis=-1).astype(np.float32)  # Indicate grayscale
     input_shape = (None, *xs.shape[1:])
     print("Input data shape", input_shape)
@@ -297,10 +350,10 @@ if __name__ == "__main__":
         central=config.central,
     )
     model.build(input_shape=input_shape)
-    model.summary()
+    model_summary = model.summary()
 
     # Skip slow step if pretrained
-    if not pretrained:
+    if train:
         print("Making dataset generator")
         training_generator, validation_generator = make_generator(
             train_xs,
@@ -313,14 +366,16 @@ if __name__ == "__main__":
     train_samples = len(train_xs)
     del train_xs, train_ys
 
-    # TRAIN
-    if pretrained:
+    # TRAIN (or load)
+    if not train:
         model.load_weights(weights_file)
         history = None
         if os.path.exists(history_file):
             with open(history_file, "rb") as f:
                 history = pickle.load(f)
             print("Loaded history", history_file)
+        else:
+            print("Could not find history file", history_file)
     else:
         print(f"Getting class weights {config.class_weight_mode}...")
         class_weights = get_class_weights(
@@ -373,13 +428,15 @@ if __name__ == "__main__":
             use_multiprocessing=False
         )
         history = train_report.history
-        if data_num != "sample":
+        if overwrite(weights_file, args):
             model.save_weights(weights_file)
-        with open(history_file, "wb") as f:
-            pickle.dump(history, f, protocol=pickle.HIGHEST_PROTOCOL)
+        if overwrite(history_file, args):
+            with open(history_file, "wb") as f:
+                pickle.dump(history, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     # LOG TRAINING
-    if history is not None:
+    loss_graph_file = os.path.join(args.exp_dir, "losses.png")
+    if history is not None and overwrite(loss_graph_file, args):
         plt.figure()
         epochs = list(range(len(history["loss"])))
         plt.plot(epochs, history["loss"], label="Training Loss")
@@ -388,8 +445,9 @@ if __name__ == "__main__":
         plt.xlabel("Epoch")
         plt.ylabel("Loss")
         plt.legend()
-        if data_num != "sample":
-            plt.savefig(os.path.join(exp_dir, "losses.png"))
+        plt.savefig(loss_graph_file)
+    else:
+        print("Loss graph not (re)saved")
 
     # TEST. TODO - batch
     print("Evaluating...")
@@ -408,23 +466,16 @@ if __name__ == "__main__":
         cm += img_confusion
     print("Complete")
 
-    # Process CM and save raw 
-    if data_num != "sample":
-        np.savetxt(os.path.join(exp_dir, "confusion.csv"), cm, delimiter=",")
+    # Process CM and save raw
+    cm_file = os.path.join(args.exp_dir, "confusion.csv")
+    if overwrite(cm_file, args):
+        np.savetxt(cm_file, cm, delimiter=",")
     cm = cm.astype('double')  # Cast, for calculations
     total_accuracy = np.sum(np.diagonal(cm)) / np.sum(cm)
     cm = cm / cm.sum(axis=1)[:, np.newaxis]
     accuracy_per_class = np.diagonal(cm)  # TP accuracy
     avg_accuracy_per_class = np.mean(accuracy_per_class)
     avg_accuracy_per_target_class = np.mean(accuracy_per_class[:-1])
-
-    # Display a random image
-    rand_idx = np.random.randint(0, len(test_xs))
-    rx = test_xs[rand_idx]
-    ry = tf.argmax(test_ys[rand_idx], axis=-1)
-    rand_pred = tf.argmax(model(np.expand_dims(rx, axis=0) / 255), axis=-1)[0]
-    if data_num != "sample":
-        display([rx, ry, rand_pred])
 
     # Create report
     result_string = "Test set accuracy: {:.3%}".format(total_accuracy)
@@ -440,9 +491,19 @@ if __name__ == "__main__":
     np.set_printoptions(precision=3, suppress=True)
     result_string += "\n\nConfusion:\n" + str(cm)
 
+    result_string += f"\n\n{model_summary}"
+
     # Write to file and display
-    if data_num != "sample":
-        with open(os.path.join(exp_dir, "results.txt"), "w") as rf:
+    result_file = os.path.join(args.exp_dir, "results.txt")
+    if overwrite(result_file, args):
+        with open(result_file, "w") as rf:
             rf.write(result_string)
+    else:
+        print("WARNING, force false, did not write results")
 
     print(result_string)
+
+    # Display (and save in-function) n random images
+    if args.display:
+        display_multi(test_xs, test_ys, args)
+        plt.show()
