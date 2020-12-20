@@ -1,5 +1,6 @@
 import os
 import sys
+import csv
 import math
 import datetime
 import shutil
@@ -308,6 +309,7 @@ def overwrite(filename, args):
 
 if __name__ == "__main__":
     args = parse_my_args()
+    result_file = "results.csv"
 
     # FILES
     os.makedirs(args.exp_dir, exist_ok=True)
@@ -500,6 +502,26 @@ if __name__ == "__main__":
             rf.write(result_string)
     else:
         print("WARNING, force false, did not write results")
+
+    # Write csv to keep track
+    # Only track full runs
+    if True:  # args.data_num == -1:
+        # Add titles
+        if not os.path.exists(result_file):
+            with open(result_file, "w") as f:
+                csv_writer = csv.writer(f)
+                csv_writer.writerow([
+                    "exp", "acc", "avg_cls_acc", "avg_cls_acc_exc_bg",
+                    "val_loss"
+                ])
+        csv_line = [
+            args.exp_dir, accuracy_per_class, avg_accuracy_per_class,
+            avg_accuracy_per_target_class, history["val_loss"][-1]
+        ]
+        # Append result
+        with open(result_file, "a") as f:
+            csv_writer = csv.writer(f)
+            csv_writer.writerow(csv_line)
 
     print(result_string)
 
