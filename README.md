@@ -57,4 +57,6 @@ I investigate the use of a Bayesian prior on the human-induced boundary labellin
 
 I aim to improve the training process for image segmentation tasks, achieving more precise segmentation boundaries as a result, which are essential in the [original medical context](https://deepmind.com/research/publications/clinically-applicable-diagnosis-and-referral-retinal-disease).
 
-Results pending.
+# Experiment log
+
+[Google docs link](https://docs.google.com/document/d/1qQnq6UoZ1EMvqMxJtW3bz45_LgJuF5qJooZ_jsB_YoM/edit?usp=sharing)
