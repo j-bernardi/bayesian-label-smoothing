@@ -4,9 +4,13 @@ A repository to prove the Bayesian Label Smoothing theory proposed by my Master'
 # Setup
 
 ## Auto setup (servers)
-`first_time_setup.sh`
+```bash
+apt-get dos2unix
+dos2unix -n first_time_setup.sh unix_compat_setup.sh
+source unix_compat_setup.sh
+```
 
-A script that sets up a fresh GPU server with unix packages.
+A script that sets up a fresh GPU server with unix packages. Written in dos, so convert to unix (removes return carriage \r)
 
 It installs anaconda and creates an environment with the required python packages. Finally it installs [this git repo](https://github.com/j-bernardi/bayesian-label-smoothing.git) and downloads the [data](https://www.kaggle.com/farhanhubble/multimnistm2nist) from the Kaggle servers.
 

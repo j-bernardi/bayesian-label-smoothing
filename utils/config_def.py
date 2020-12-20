@@ -15,7 +15,7 @@ class Config(object):
         self.central = kwargs.pop("central", default_central)
         self.decoding = kwargs.pop("decoding", default_decoder)
 
-        self.max_epochs = kwargs.pop("max_epochs", 1)
+        self.max_epochs = kwargs.pop("max_epochs", 500)
 
         self.train_batch_size = kwargs.pop("train_batch_size", 64)
         self.val_batch_size = kwargs.pop("val_batch_size", 1000)

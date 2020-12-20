@@ -253,6 +253,9 @@ if __name__ == "__main__":
             data_num = "sample"
         else:
             data_num = int(sys.argv[2])
+    else:
+        data_num = -1  # all
+
     # FILES
     os.makedirs(exp_dir, exist_ok=True)
     weights_file = os.path.join(exp_dir, "weights.h5")
