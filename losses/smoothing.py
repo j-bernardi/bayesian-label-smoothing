@@ -26,7 +26,7 @@ def fixed_uniform_smoothing(
         smooth = np.zeros(n_classes) + (
             1. - fixed_smoothing_magnitude) / (n_classes - 1)
         smooth[c] = fixed_smoothing_magnitude
-        assert np.sum(smooth) == 1.
+        assert np.isclose(np.sum(smooth), 1., atol=1e-3)
         smoothing_matrix[c] = smooth
     return smoothing_matrix
 
@@ -61,7 +61,7 @@ def fixed_adjacent_smoothing(
                 1. - fixed_smoothing_magnitude
             )
         smoothing_matrix[c, c] = fixed_smoothing_magnitude
-        assert np.sum(smoothing_matrix[c]) == 1.
+        assert np.isclose(np.sum(smooth), 1., atol=1e-3)
     return smoothing_matrix
 
 
@@ -94,7 +94,7 @@ def weighted_uniform_smoothing(
         epsilon = (1. - new_label_mag) / (n_classes - 1)
         smoothing_matrix[c, :] = epsilon
         smoothing_matrix[c, c] = new_label_mag
-        assert smoothing_matrix[c].sum() == 1.
+        assert np.isclose(np.sum(smooth), 1., atol=1e-3)
     return smoothing_matrix
 
 
@@ -133,5 +133,5 @@ def weighted_adjacent_smoothing(
         smoothing_matrix[c] =\
             np.ones(n_classes) * weights * (1. - new_label_mag)
         smoothing_matrix[c, c] = new_label_mag
-        assert smoothing_matrix[c].sum() == 1.
+        assert np.isclose(np.sum(smooth), 1., atol=1e-3)
     return smoothing_matrix
