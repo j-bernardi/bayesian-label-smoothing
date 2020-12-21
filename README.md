@@ -62,7 +62,7 @@ I aim to improve the training process for image segmentation tasks, achieving mo
 [Google docs link](https://docs.google.com/document/d/1qQnq6UoZ1EMvqMxJtW3bz45_LgJuF5qJooZ_jsB_YoM/edit?usp=sharing)
 
 ## Preliminary results
-![A bar graph of preliminary results](https://drive.google.com/file/d/1BQ6GiT9uI6iKKT7aYjmM1h6BYzxiu1zB/view?usp=sharing)
+![A bar graph of preliminary results](https://github.com/j-bernardi/bayesian-label-smoothing/blob/main/results/smoothing/plot_round_1.png?raw=true)
 
 Observations:
 - We can see some exciting results for the average class accuracy excluding the background (e.g. target classes)
