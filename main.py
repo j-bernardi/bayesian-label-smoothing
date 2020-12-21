@@ -315,7 +315,7 @@ if __name__ == "__main__":
     os.makedirs(args.exp_dir, exist_ok=True)
     weights_file = os.path.join(args.exp_dir, "weights.h5")
     history_file = os.path.join(args.exp_dir, "history.p")
-    train = not os.path.exists(weights_file) and not args.force
+    train = not os.path.exists(weights_file) or args.force
     print("Weights", weights_file, "training? :", train)
 
     # CONFIGURE
@@ -515,7 +515,7 @@ if __name__ == "__main__":
                     "val_loss"
                 ])
         csv_line = [
-            args.exp_dir, accuracy_per_class, avg_accuracy_per_class,
+            args.exp_dir, total_accuracy, avg_accuracy_per_class,
             avg_accuracy_per_target_class, history["val_loss"][-1]
         ]
         # Append result
