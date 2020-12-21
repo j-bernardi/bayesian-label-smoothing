@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+# NOTE this csv contains manual processing.
+# creating combine.csv from results.csv procedurally is a TODO
 x = pd.read_csv("results/smoothing/combine.csv")
 
 # print(x.columns)
