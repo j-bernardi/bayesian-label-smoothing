@@ -67,8 +67,10 @@ I aim to improve the training process for image segmentation tasks, achieving mo
 ## Preliminary results
 ![A bar graph of preliminary results](https://github.com/j-bernardi/bayesian-label-smoothing/blob/main/results/smoothing/plot_round_1.png?raw=true)
 
+The preliminary results for 5 random weight initialisation trainings (same data order).
+
 Observations:
 - We can see some exciting results for the average class accuracy excluding the background (e.g. target classes)
-- Not sure why uniform smoothing is penalised so much
-  - may be a hyperparameter choice (further investigation pending)
-  - or suggestion that uniform smoothing (or uniform labelling error prior) is unrealistic and even harmful (vs prior of *no* labelling error), as hypothesised
+  - weighted uniform smoothing has an advantage over the uniform prior, thus far
+  - weighted adjacent does not have the same advantage - the parameter choice might not be optimal
+- It appears fixed-magnitude adjacent smoothing may have too large a smoothing magnitude. Smoothing parameter tuning pending.
