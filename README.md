@@ -24,14 +24,6 @@ cd bayesian-label-smoothing
 bash set_python_path_lin.sh
 ```
 
-### Get data
-If you want the full dataset, use this to get it from kaggle (or download manually from [here](https://www.kaggle.com/farhanhubble/multimnistm2nist))
-```bash
-mkdir data
-wget 'https://storage.googleapis.com/kaggle-data-sets/37151/56512/bundle/archive.zip?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=gcp-kaggle-com%40kaggle-161607.iam.gserviceaccount.com%2F20201128%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20201128T001219Z&X-Goog-Expires=259199&X-Goog-SignedHeaders=host&X-Goog-Signature=a48ea7d1276375093c6492e606a0b05a5b4e95843141ab8285dd3a528dd797f37b6c8afd66804ad1f1a8edd3cb3f783c59f73b537023bac3964072876f565ba38dee432cdeb917caca85a93b7a52503c327963f63e91bd2da5685b02628095bccfbb3589be45f5e188c0c8ec4564f1c46d1d63e530a65f157a7dfdab840dda83e936ac5f01aa97d325c4f29ff9c5f8f6c895fd82dffdfe32f5c5cd48b187fcc122ad332e8ca6b33a3f5ba6dfb2fd5ce637aada2967a55673318f7e08eb6917f6c6d8f691b9e34bfdaae3df79eaaaccaa79457b368bcce9a4d433a2f671c8eb91158b922533dade9664345e6dc2a431d6bcdbd78cdcb48d6652b9e18238fc56d1' -O data/download.zip
-unzip data/download.zip -d data/
-```
-
 ### Conda env
 Here are the required packages for this project
 ```bash
@@ -40,6 +32,17 @@ conda activate py36-gpu
 conda install -y tensorflow-gpu==2.1.0 matplotlib
 conda clean -a -y # make space for data
 ```
+
+### Get data
+
+There is 10 data examples in `sample_data/`. Presuming you want the full dataset, log in to kaggle.com and [download from here](https://www.kaggle.com/farhanhubble/multimnistm2nist)) into a file called `data/download.zip`. Compressed, it is only 16MB, so it can be uploaded to a server relatively easily. Then:
+```bash
+unzip data/download.zip -d data/
+```
+
+Unzipped, this is about 2.5GB, stored as int64. Note to save loading time and space on disk:
+
+All the x labels are only image data in range [0, 255] and y labels have 11 classes one-hot encoded in the last dimension, making it around 11x larger. Therefor uint8 is sufficient to represent all the data. See `data/downgrade.py` to save space if needed. Note default tensorflow models are float32, so it will need upgrading at some point.
 
 # Usage
 
