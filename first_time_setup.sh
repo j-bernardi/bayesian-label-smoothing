@@ -24,7 +24,7 @@ rm anaconda.sh  # save space
 # TODO - a venv might save space
 conda create -n py36-gpu python=3.6 -y
 conda activate py36-gpu
-conda install -y tensorflow-gpu==2.1.0 matplotlib
+conda install -y tensorflow-gpu==2.1.0 matplotlib pandas
 conda clean -a -y # make space for data
 
 # Set up training repo
