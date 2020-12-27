@@ -265,7 +265,7 @@ def display_multi(xs, ys, args):
     plt.axis('on')  # reset
 
 
-def parse_my_args():
+def parse_my_args(arg_list):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "exp_dir", type=str,
@@ -285,7 +285,7 @@ def parse_my_args():
     parser.add_argument("--force", "-f", action="store_true",
         help="Overwrites current weights and graphs"
     )
-    args = parser.parse_args()
+    args = parser.parse_args(arg_list)
 
     if args.data_num != "sample":
         args.data_num = int(args.data_num)
@@ -307,8 +307,9 @@ def overwrite(filename, args):
         return True
 
 
-if __name__ == "__main__":
-    args = parse_my_args()
+def main(cmdline_args):
+
+    args = parse_my_args(cmdline_args)
     result_file = "results.csv"
 
     # FILES
@@ -346,7 +347,8 @@ if __name__ == "__main__":
     # MAKE MODEL
     print("Making model")
     model = UNet2D(
-        input_shape[1:], n_classes, 
+        input_shape[1:],  # exclude batch dimension
+        n_classes,
         encoding=config.encoding,
         decoding=config.decoding,
         central=config.central,
@@ -493,7 +495,12 @@ if __name__ == "__main__":
     np.set_printoptions(precision=3, suppress=True)
     result_string += "\n\nConfusion:\n" + str(cm)
 
-    result_string += f"\n\n{model_summary}"
+    if smoothing_matrix is not None:
+        result_string += f"\n\nSmoothing:\n{smoothing_matrix}"
+    else:
+        result_string += f"\n\nSmoothing:\nNo smoothing applied."
+
+    result_string += f"\n\nModel summary:\n{model_summary}"
 
     # Write to file and display
     result_file = os.path.join(args.exp_dir, "results.txt")
@@ -503,9 +510,8 @@ if __name__ == "__main__":
     else:
         print("WARNING, force false, did not write results")
 
-    # Write csv to keep track
-    # Only track full runs
-    if True:  # args.data_num == -1:
+    # Write csv to track experiments
+    if args.data_num != "sample":  # Only track full runs
         # Add titles
         if not os.path.exists(result_file):
             with open(result_file, "w") as f:
@@ -529,3 +535,8 @@ if __name__ == "__main__":
     if args.display:
         display_multi(test_xs, test_ys, args)
         plt.show()
+
+
+if __name__ == "__main__":
+
+    main(sys.argv[1:])
