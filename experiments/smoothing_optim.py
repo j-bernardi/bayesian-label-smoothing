@@ -2,6 +2,7 @@ import os
 import sys
 import shutil
 import pprint
+import traceback
 
 from main import main
 
@@ -60,6 +61,7 @@ if __name__ == "__main__":
                     if not success:
                         failed[exp_dir] = "Returned prematurely"
                 except Exception as e:
+                    traceback.print_exc()
                     failed[exp_dir] = str(e)
 
     print(f"FAILURES:\n{pprint.pformat(failed)}")
