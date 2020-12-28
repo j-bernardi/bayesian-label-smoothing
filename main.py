@@ -229,7 +229,7 @@ def define_callbacks(
     return [early_stop, reduce_plateau, tensorboard]
 
 
-def display_multi(xs, ys, args):
+def display_multi(xs, ys, model, args):
     """Display random n images, save to exp dir
 
     """
@@ -549,7 +549,7 @@ def main(cmdline_args):
 
     # Display (and save in-function) n random images
     if args.display:
-        display_multi(test_xs, test_ys, args)
+        display_multi(test_xs, test_ys, model, args)
         plt.show()
 
     return True

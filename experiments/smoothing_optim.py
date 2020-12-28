@@ -55,11 +55,11 @@ if __name__ == "__main__":
                 with open(exp_config_file, "w") as f:
                     f.write(new_string)
 
-                # try:
-                success = main([exp_dir, "-d", "3"])
-                #     if not success:
-                #         failed[exp_dir] = "Returned prematurely"
-                # except Exception as e:
-                #     failed[exp_dir] = str(e)
+                try:
+                    success = main([exp_dir, "-d", "3"])
+                    if not success:
+                        failed[exp_dir] = "Returned prematurely"
+                except Exception as e:
+                    failed[exp_dir] = str(e)
 
     print(f"FAILURES:\n{pprint.pformat(failed)}")
