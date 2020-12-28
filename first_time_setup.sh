@@ -1,9 +1,12 @@
-# run with source
-# NOTE:
-#  If receive one of errors:
+# USAGE:
+# Needs to be converted from dos, not changed in commit yet
+# Then run with source, e.g.:
+#   apt-get install dos2unix && dos2unix -n first_time_setup.sh unix_compat_setup.sh && source unix_compat_setup.sh
+#	source first_time_setup.sh
+# 
+# If conversion not run, expect to receive one of errors:
 #    '\r': command not found
 #    could not locate package libxtst6
-# Try apt-get dos2unix && dos2unix -n first_time_setup.sh unix_compat_setup.sh && ./unix_compat_setup.sh
 
 # Machine requirements
 apt update
