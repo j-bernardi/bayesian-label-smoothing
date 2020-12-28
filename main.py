@@ -6,6 +6,7 @@ import datetime
 import shutil
 import pickle
 import argparse
+import importlib
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.callbacks as cbks
@@ -325,7 +326,21 @@ def main(cmdline_args):
         print("No config, using default")
         config = Config()  # defaults
     else:
-        exec(open(config_file).read(), globals(), locals())
+        # Import with importlib so it's executable from other files
+        print("Reading config", config_file)
+        # First arg sets __name__ of the namespace. Not needed.
+        config_spec = importlib.util.spec_from_file_location(
+            "config_file", config_file
+        )
+        config_module = importlib.util.module_from_spec(config_spec)
+        config_spec.loader.exec_module(config_module)
+
+        config = config_module.config
+        if not isinstance(config, Config):
+            raise ValueError(
+                f"Config {config_file} is not valid."
+                f"\"Lacks config = Config()\" object.\n{config}"
+            )
 
     # Fail early if invalid
     if train:
