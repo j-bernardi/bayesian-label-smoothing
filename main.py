@@ -311,7 +311,7 @@ def overwrite(filename, args):
 def main(cmdline_args):
 
     args = parse_my_args(cmdline_args)
-    result_file = "results.csv"
+    result_csv = "results.csv"
 
     # FILES
     os.makedirs(args.exp_dir, exist_ok=True)
@@ -529,8 +529,9 @@ def main(cmdline_args):
     # Write csv to track experiments
     if args.data_num != "sample":  # Only track full runs
         # Add titles
-        if not os.path.exists(result_file):
-            with open(result_file, "w") as f:
+        print("Writing to", result_csv)
+        if not os.path.exists(result_csv):
+            with open(result_csv, "w") as f:
                 csv_writer = csv.writer(f)
                 csv_writer.writerow([
                     "exp", "acc", "avg_cls_acc", "avg_cls_acc_exc_bg",
@@ -541,7 +542,7 @@ def main(cmdline_args):
             avg_accuracy_per_target_class, history["val_loss"][-1]
         ]
         # Append result
-        with open(result_file, "a") as f:
+        with open(result_csv, "a") as f:
             csv_writer = csv.writer(f)
             csv_writer.writerow(csv_line)
 
