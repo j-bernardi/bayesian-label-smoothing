@@ -389,7 +389,7 @@ def main(cmdline_args):
             generator_length=num_training_batches,
             drop_background=config.drop_background,
         )
-        print("Class weights calculated", class_weights)
+        print(f"Using class weights:\n{class_weights}")
 
         print(f"Getting smoothing matrix {config.smoothing_function.__name__}")
         if config.smoothing_function is None:
@@ -398,6 +398,7 @@ def main(cmdline_args):
             smoothing_matrix = config.smoothing_function(
                 n_classes, training_generator, num_training_batches
             )
+        print(f"Using smoothing:\n{smoothing_matrix}")
         weighted_cce = CustomSmoothedWeightedCCE(
             class_weights=list(class_weights.values()),
             label_smoothing=smoothing_matrix,
@@ -535,6 +536,8 @@ def main(cmdline_args):
     if args.display:
         display_multi(test_xs, test_ys, args)
         plt.show()
+
+    return True
 
 
 if __name__ == "__main__":
