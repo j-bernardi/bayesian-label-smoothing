@@ -3,6 +3,7 @@ import sys
 import shutil
 import pprint
 import traceback
+import tensorflow as tf
 
 from main import main
 
@@ -35,6 +36,7 @@ if __name__ == "__main__":
     for r in REPEATS:
         for smoothing_type in smooths:
             for param in smooths[smoothing_type]:
+                tf.keras.backend.clear_session()
 
                 exp_dir = os.path.join(SUBDIR, f"{smoothing_type}_{param}_{r}")
                 # No dots in dir name (for importlib, config loading)
@@ -57,9 +59,17 @@ if __name__ == "__main__":
                     f.write(new_string)
 
                 try:
-                    success = main([exp_dir, "-d", "3"])
-                    if not success:
-                        failed[exp_dir] = "Returned prematurely"
+                    # TODO - running causes segmentation error, core dump
+                    # Figure out how to cleanse the RAM (profile?)
+                    # May need to just load in data once - e.g. this
+                    # Loads every time and might not be being cleaned properly
+
+                    # Workaround: bash for loop over the output configs
+
+                    # success = main([exp_dir, "-d", "3"])
+                    # if not success:
+                    #     failed[exp_dir] = "Returned prematurely"
+                    pass
                 except Exception as e:
                     traceback.print_exc()
                     failed[exp_dir] = str(e)
