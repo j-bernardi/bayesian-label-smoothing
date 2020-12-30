@@ -140,7 +140,8 @@ def plot_sweep_on_scatter(result_dict, quantity="acc"):
         plt.errorbar(
             series[series_name]["x_vals"],
             series[series_name]["y_vals"],
-            yerr=series[series_name]["err_vals"]
+            yerr=series[series_name]["err_vals"],
+            capsize=10.0,
         )
     plt.legend(legend)
     plt.title(f"{quantity} mean, std")  # VARY
@@ -151,9 +152,10 @@ def plot_sweep_on_scatter(result_dict, quantity="acc"):
 
 if __name__ == "__main__":
 
-    result_dict = csv_to_dict("initial_results.csv")
+    result_dict = csv_to_dict("results/smoothing_optim/fixed_results.csv")
     # pickle save?
-    plot_sweep_on_scatter(result_dict)
+    for quant in ["acc", "avg_cls_acc", "avg_cls_acc_exc_bg"]:
+        plot_sweep_on_scatter(result_dict, quant)
     plt.show()
 
     # Plot from prepared CSV (to be deprecated)
