@@ -117,25 +117,36 @@ def plot_bar_comparison(result_dict, to_plot, quantity="acc"):
     x_labels = []
     y_values = []
     error_vals = []
+    colours = []
+    next_colour = "green"
 
-    for exp in result_dict:
-        exp_name = "_".join(exp.split("_")[:-1])
-        param_val = "0." + exp.split("_")[-1]
+    for exp_name in to_plot:
+        next_colour = "blue" if next_colour == "green" else "green"
 
-        if exp_name in to_plot and param_val in to_plot[exp_name]:
+        for param_val in to_plot[exp_name]:
+            exp = f"{exp_name}_{param_val.replace('0.', '')}"
+
             x_labels.append(exp)
+            
             # if mean, std (TODO: else (median_)range[0, 1, 2])
             y_values.append(result_dict[exp][quantity]["mean"])
             error_vals.append(result_dict[exp][quantity]["std"])
 
-    bar_plot(ax, x_labels, y_values, error_vals, f"{quantity} - mean, std")
+            colours.append(next_colour)
+
+    bar_plot(
+        ax, x_labels, y_values, error_vals,
+        f"{quantity} - mean, std",
+        colours=colours,
+    )
 
 
-def bar_plot(ax, labels, values, errors, title):
+def bar_plot(ax, labels, values, errors, title, colours=[]):
     pos = np.arange(len(values))
     ax.bar(
         pos, values, yerr=errors, align='center', alpha=0.5, ecolor='black',
         capsize=10,
+        color=colours if colours else None
     )
     ax.set_xticks(pos)
     ax.minorticks_on()
