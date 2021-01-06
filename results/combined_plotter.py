@@ -1,56 +1,11 @@
+import math
 import pprint
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
 
-# TODO: values, errors, title
-def add_to_bar_plot(ax, vals, data_col, error_col):
-    pos = np.arange(len(vals))
-    ax.bar(
-        pos,
-        vals[data_col],
-        yerr=vals[error_col],
-        align='center', alpha=0.5,
-        ecolor='black', capsize=10,
-    )
-    ax.set_xticks(pos)
-    ax.minorticks_on()
-    ax.set_xticklabels(vals['Unnamed: 0'])
-    ax.set_title(f"{data_col}, {error_col}")
-
-    # Customize the major grid
-    ax.grid(axis='y', which='major', linestyle='-', linewidth='0.5', color='black')
-    # Customize the minor grid
-    ax.grid(axis='y', which='minor', linestyle='--', linewidth='0.2', color='black')
-    ax.set_ylabel('Accuracy (%)')
-    ax.set_yticks(np.arange(0., 1., 0.05))
-    ax.set_yticks(np.arange(0., 1., 0.01), minor=True)
-    ax.set_ylim(0.6, 1.0 if max(vals[data_col]) > 0.8 else 0.8)
-
-    # Save the figure and show
-    plt.tight_layout()
-    # plt.savefig('bar_plot_with_error_bars.png')
-
-
-def plot_from_preprepared():
-
-    # NOTE this csv contains manual processing.
-    # creating combine.csv from results.csv procedurally is a TODO
-    x = pd.read_csv("results/smoothing/combine.csv")
-    # Take the pre
-    fig, ax = plt.subplots(3, 2)
-    add_to_bar_plot(ax[0, 0], x, 'Total accuracy', 'stdev')
-    add_to_bar_plot(ax[0, 1], x, 'Total accuracy', 'range')
-
-    add_to_bar_plot(ax[1, 0], x, 'avg_cls_acc', 'stdev')
-    add_to_bar_plot(ax[1, 1], x, 'avg_cls_acc', 'range')
-
-    add_to_bar_plot(ax[2, 0], x, 'avg_cls_acc_exc_bg', 'stdev')
-    add_to_bar_plot(ax[2, 1], x, 'avg_cls_acc_exc_bg', 'range')
-
-
-def csv_to_dict(csvfile="results.csv", printing=True):
+def csv_to_dict(csvfile="results.csv", printing=False):
     """Convert main.py results to experiment dict
 
     Takes the output csv file of main.py and converts it
@@ -150,13 +105,80 @@ def plot_sweep_on_scatter(result_dict, quantity="acc"):
     return series
 
 
+def plot_bar_comparison(result_dict, to_plot, quantity="acc"):
+    """Extract and plot experiments in a comparative bar chart
+
+    Compare the experiments in to_plot from a raw result dict
+
+    Calls bar_plot() auxillary to do plotting
+    """
+
+    fig, ax = plt.subplots()  # 3, 2)
+    x_labels = []
+    y_values = []
+    error_vals = []
+
+    for exp in result_dict:
+        exp_name = "_".join(exp.split("_")[:-1])
+        param_val = "0." + exp.split("_")[-1]
+
+        if exp_name in to_plot and param_val in to_plot[exp_name]:
+            x_labels.append(exp)
+            # if mean, std (TODO: else (median_)range[0, 1, 2])
+            y_values.append(result_dict[exp][quantity]["mean"])
+            error_vals.append(result_dict[exp][quantity]["std"])
+
+    bar_plot(ax, x_labels, y_values, error_vals, f"{quantity} - mean, std")
+
+
+def bar_plot(ax, labels, values, errors, title):
+    pos = np.arange(len(values))
+    ax.bar(
+        pos, values, yerr=errors, align='center', alpha=0.5, ecolor='black',
+        capsize=10,
+    )
+    ax.set_xticks(pos)
+    ax.minorticks_on()
+    ax.set_xticklabels(labels, rotation=45, ha="right")
+    ax.set_title(title)
+
+    # Customize the major grid
+    ax.grid(
+        axis='y', which='major', linestyle='-', linewidth='0.5',
+        color='black'
+    )
+    # Customize the minor grid
+    ax.grid(
+        axis='y', which='minor', linestyle='--', linewidth='0.2',
+        color='black'
+    )
+    ax.set_ylabel('Accuracy (%)')
+    ax.set_yticks(np.arange(0., 1., 0.05))
+    ax.set_yticks(np.arange(0., 1., 0.01), minor=True)
+
+    min_lim = math.floor(min(values) * 10) / 10
+    max_lim = math.ceil(max(values) * 10) / 10
+    ax.set_ylim(min_lim, max_lim)
+    # ax.set_ylim(0.6, 1.0 if max(values) > 0.8 else 0.8)
+    plt.tight_layout()
+
+
 if __name__ == "__main__":
 
     result_dict = csv_to_dict("results/smoothing_optim/fixed_results.csv")
     # pickle save?
-    for quant in ["acc", "avg_cls_acc", "avg_cls_acc_exc_bg"]:
-        plot_sweep_on_scatter(result_dict, quant)
-    plt.show()
 
-    # Plot from prepared CSV (to be deprecated)
-    # plot_from_preprepared()
+    # For bar chart plotting
+    final_versions = {
+        "fixed_uniform_smoothing": ["0.800", "0.875", "0.950", "0.975"],
+        "fixed_adjacent_smoothing": ["0.925", "0.975"],
+        "weighted_uniform_smoothing": ["0.850", "0.925", "0.975"],
+        "weighted_adjacent_smoothing": ["0.800", "0.875", "0.925", "0.975"],
+    }
+    for quant in ["acc", "avg_cls_acc", "avg_cls_acc_exc_bg"]:
+        # plot_sweep_on_scatter(result_dict, quant)
+        plot_bar_comparison(result_dict, final_versions, quant)
+    
+        # plt.savefig(f"{quant}_bar_chart.png")
+
+    plt.show()
